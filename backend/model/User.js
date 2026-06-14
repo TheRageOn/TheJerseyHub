@@ -1,36 +1,5 @@
 const mongoose = require("mongoose");
 
-// Address for delivery (single address per user)
-const addressSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  phone: {
-    type: String,
-    required: true,
-  },
-  street: {
-    type: String,
-    required: true,
-  },
-  city: {
-    type: String,
-    required: true,
-  },
-  state: {
-    type: String,
-  },
-  postalCode: {
-    type: String,
-  },
-  country: {
-    type: String,
-    default: "Nepal",
-  },
-});
-
 // User model
 const userSchema = new mongoose.Schema(
   {
@@ -54,23 +23,17 @@ const userSchema = new mongoose.Schema(
       minlength: 6,
     },
 
+    phone: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     role: {
       type: String,
       enum: ["customer", "admin"],
       default: "customer",
     },
-
-    phone: {
-      type: String,
-      trim: true,
-    },
-
-    avatar: {
-      type: String,
-      default: "",
-    },
-
-    address: addressSchema,
 
     isBlocked: {
       type: Boolean,
