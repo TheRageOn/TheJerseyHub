@@ -1,87 +1,74 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  role?: string;
-}
-
-export interface AuthResponse {
-  success: boolean;
-  message?: string;
-  data?: {
-    user?: AuthUser;
-  };
-}
-
-export interface RegisterPayload {
-  name: string;
-  email: string;
-  password: string;
-  phone: string;
-}
-
-export interface LoginPayload {
-  email: string;
-  password: string;
-}
-
-export async function request<T>(
+export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestInit = {}
-): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const headers = new Headers(options.headers || {});
+): Promise<{ success: boolean; data?: T; message?: string }> {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("tjh_token") : null;
 
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
+
+  const endpointNormalized = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${API_BASE_URL}${endpointNormalized}`;
 
   try {
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       ...options,
       headers,
-      credentials: "include", // Sends and receives httpOnly cookies securely
-    });
+      credentials: "include",
+    }).catch(() => null);
 
-    const data = await res.json().catch(() => ({}));
+    // Fallback to port 5000 if port 5001 is offline
+    if (!res && !endpoint.startsWith("http")) {
+      res = await fetch(`http://localhost:5000/api${endpointNormalized}`, {
+        ...options,
+        headers,
+        credentials: "include",
+      }).catch(() => null);
+    }
+
+    if (!res) {
+      return {
+        success: false,
+        message: "Network error: backend server not reachable",
+      };
+    }
+
+    const data = (await res.json()) as {
+      success?: boolean;
+      data?: T;
+      message?: string;
+      [key: string]: unknown;
+    };
 
     if (!res.ok) {
-      const errorMsg =
-        data.message ||
-        (Array.isArray(data.errors) ? data.errors[0]?.message : null) ||
-        `HTTP Error ${res.status}`;
-      throw new Error(errorMsg);
+      return {
+        success: false,
+        message: data.message || "Request failed with status " + res.status,
+      };
     }
 
-    return data as T;
+    return {
+      success: true,
+      data: (data.data !== undefined ? data.data : data) as T,
+      message: data.message,
+    };
   } catch (err: unknown) {
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      throw new Error("SERVER_OFFLINE // BACKEND UNREACHABLE");
-    }
-    throw err;
+    const message = err instanceof Error ? err.message : "Network error";
+    return {
+      success: false,
+      message,
+    };
   }
 }
-
-export const api = {
-  auth: {
-    register: (payload: RegisterPayload) =>
-      request<AuthResponse>("/auth/register", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    login: (payload: LoginPayload) =>
-      request<AuthResponse>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    me: () => request<AuthResponse>("/auth/me"),
-    logout: () =>
-      request<{ success: boolean; message: string }>("/auth/logout", {
-        method: "POST",
-      }),
-  },
-};

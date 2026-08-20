@@ -2,8 +2,12 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { JERSEYS } from "@/data/jerseys";
+import Navbar from "@/components/landing/Navbar";
+import AuthModal from "@/components/auth/AuthModal";
+import ContactModal from "@/components/contact/ContactModal";
+import { useTheme } from "@/context/ThemeContext";
+import { useCart } from "@/context/CartContext";
 
 /* ─── Constants ───────────────────────────────────────────────────── */
 const N = JERSEYS.length;
@@ -34,10 +38,23 @@ function radius(w: number) {
 
 /* ─── Component ───────────────────────────────────────────────────── */
 export default function HomePage() {
+  /*
+   * States:
+   *   currentIndex      → changes when user switches jerseys
+   *   timeString        → once per second
+   *   authModalOpen     → for signup / login modal popup
+   *   authMode          → 'login' | 'signup'
+   *   contactModalOpen  → for contact email modal
+   */
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [soundOn, setSoundOn] = useState(true);
-  const [theme, setTheme] = useState<"light" | "black">("black");
+  const { theme, isWhite } = useTheme();
+  const { addToCart } = useCart();
   const [timeString, setTimeString] = useState("00:00:00");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [showSpecsHUD, setShowSpecsHUD] = useState(true);
+  const [showIntelHUD, setShowIntelHUD] = useState(true);
 
   // Animation values — refs only, zero re-renders at 60fps
   const targetRot = useRef(0);
@@ -49,7 +66,6 @@ export default function HomePage() {
   // DOM refs for direct manipulation
   const jerseyEls = useRef<(HTMLDivElement | null)[]>([]);
   const sheenEls = useRef<(HTMLDivElement | null)[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Swipe state
   const swipe = useRef({
@@ -62,47 +78,10 @@ export default function HomePage() {
   });
   const wheelSnap = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* ─── Audio ─────────────────────────────────────────────────────── */
-  useEffect(() => {
-    const a = new Audio("/sound.mp3");
-    a.loop = true;
-    a.volume = 0.45;
-    audioRef.current = a;
-    const p = a.play();
-    if (p) {
-      p.catch(() => {
-        const u = () => {
-          audioRef.current?.play().catch(() => {});
-          window.removeEventListener("click", u);
-          window.removeEventListener("touchstart", u);
-          window.removeEventListener("keydown", u);
-        };
-        window.addEventListener("click", u, { once: true });
-        window.addEventListener("touchstart", u, { once: true });
-        window.addEventListener("keydown", u, { once: true });
-      });
-    }
-    return () => {
-      a.pause();
-      audioRef.current = null;
-    };
+  const handleOpenAuth = useCallback((mode: "login" | "signup") => {
+    setAuthMode(mode);
+    setAuthModalOpen(true);
   }, []);
-
-  const toggleSound = useCallback(() => {
-    if (!audioRef.current) return;
-    if (soundOn) {
-      audioRef.current.pause();
-      setSoundOn(false);
-    } else {
-      audioRef.current.play().catch(() => {});
-      setSoundOn(true);
-    }
-  }, [soundOn]);
-
-  const toggleTheme = useCallback(
-    () => setTheme((p) => (p === "light" ? "black" : "light")),
-    [],
-  );
 
   /* ─── Clock (1 re-render / sec) ─────────────────────────────────── */
   useEffect(() => {
@@ -152,12 +131,12 @@ export default function HomePage() {
         el.style.opacity = String(cp.opacity);
         el.style.zIndex = String(cp.zIndex);
         el.style.filter = front
-          ? `drop-shadow(${shX}px ${shY}px 45px rgba(0,0,0,.75)) brightness(1.05) contrast(1.05)`
+          ? `drop-shadow(${shX}px ${shY}px 45px rgba(0,0,0,.65)) brightness(1.03) contrast(1.05)`
           : `brightness(${0.25 + cp.depth * 0.55}) contrast(1.15) grayscale(${(1 - cp.depth) * 0.5})`;
 
         if (sh) {
           if (front) {
-            sh.style.opacity = "0.4";
+            sh.style.opacity = "0.35";
             sh.style.background = `radial-gradient(circle at ${snX}% ${snY}%,rgba(255,255,255,.7) 0%,rgba(255,255,255,.1) 35%,transparent 60%)`;
           } else {
             sh.style.opacity = "0";
@@ -242,184 +221,161 @@ export default function HomePage() {
     targetRot.current = front + d;
   }, []);
 
-  const isLight = theme === "light";
   const sel = JERSEYS[currentIndex];
 
   return (
     <main
       className={`relative w-screen h-screen overflow-hidden select-none transition-colors duration-700 ${
-        isLight ? "theme-light text-[#1a1a1a]" : "theme-black text-[#d0d0d0]"
+        isWhite ? "theme-white" : "theme-black"
       }`}
       onTouchStart={onTS}
       onTouchMove={onTM}
       onTouchEnd={onTE}
     >
-      {/* Film Grain — GPU-composited fixed layer */}
+      {/* Tactile High-Pass Film Grain Overlay */}
       <div
         className="film-grain"
-        style={{ opacity: isLight ? 0.18 : 0.3 }}
+        style={{ opacity: isWhite ? 0.28 : 0.18 }}
       />
 
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="fixed top-0 left-0 w-full z-40 px-4 sm:px-10 py-5 sm:py-7 flex items-center justify-between text-[10px] sm:text-[11px] font-mono tracking-[0.14em] sm:tracking-[0.18em] uppercase">
-        <div className="flex items-center gap-3 sm:gap-8">
-          <span
-            className={`font-semibold tracking-[0.18em] sm:tracking-[0.22em] cursor-pointer ${
-              isLight ? "text-black" : "text-white"
-            }`}
-          >
-            [THEJERSEYHUB]
+      {/* ── Top Marquee Header Bar ─────────────────────────────────── */}
+      <div
+        className={`fixed top-0 left-0 right-0 z-50 h-8 backdrop-blur-md border-b flex items-center justify-between px-6 sm:px-10 text-[8.5px] sm:text-[9.5px] font-mono tracking-[0.16em] sm:tracking-[0.2em] uppercase select-none pointer-events-auto transition-colors ${
+          isWhite
+            ? "bg-[#faf7f0]/95 border-black/10 text-[#0c0c0c]"
+            : "bg-[#070707]/95 border-white/10 text-white"
+        }`}
+      >
+        <div className="flex items-center gap-2.5 overflow-hidden whitespace-nowrap">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ff5500] animate-pulse shrink-0" />
+          <span className={isWhite ? "text-black/85" : "text-white/80"}>
+            THEJERSEYHUB / IMMERSIVE FOOTBALL ARCHIVE / 2026
           </span>
-          <button
-            onClick={toggleSound}
-            className={`hover:opacity-100 transition-opacity cursor-pointer ${
-              isLight ? "text-[#555]" : "text-[#777]"
-            }`}
-          >
-            SOUND
-          </button>
+          <span className={isWhite ? "text-black/25 hidden sm:inline" : "text-white/20 hidden sm:inline"}>
+            •
+          </span>
+          <span className={isWhite ? "text-black/50 hidden sm:inline" : "text-white/50 hidden sm:inline"}>
+            EXPERIENCE THE FUTURE BEFORE IT ARRIVES
+          </span>
         </div>
+        <div className={`hidden md:flex items-center gap-4 ${isWhite ? "text-black/40" : "text-white/40"}`}>
+          <span>MATCH SPEC</span>
+          <span>•</span>
+          <span>SHADERS</span>
+          <span>•</span>
+          <span>VAULT LIVE</span>
+        </div>
+      </div>
 
-        {/* Center Emblem */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-4 sm:top-6">
-          <div
-            className={`w-8 sm:w-10 h-5 sm:h-7 rounded-[2px] flex items-center justify-center px-1 cursor-pointer hover:scale-105 transition-transform ${
-              isLight
-                ? "bg-black text-white shadow-[0_0_15px_rgba(0,0,0,0.15)]"
-                : "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+      {/* ── Thick Editorial Navbar ─────────────────────────────────── */}
+      <Navbar
+        onOpenAuth={handleOpenAuth}
+        onDiscoverNext={() =>
+          (targetRot.current = Math.round(targetRot.current) + 1)
+        }
+      />
+
+      {/* ── Left HUD: KIT SPECS ───────────────────────────────────── */}
+      {showSpecsHUD && (
+        <div
+          className={`fixed left-6 sm:left-10 top-[40%] -translate-y-1/2 w-64 sm:w-72 backdrop-blur-xl rounded-2xl p-6 sm:p-7 z-30 pointer-events-auto hidden lg:block transition-all ${
+            isWhite
+              ? "bg-[#faf7f0]/90 border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.07)] text-[#0c0c0c]"
+              : "bg-[#0a0a0a]/90 border border-white/12 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-[#888]"
+          }`}
+        >
+          {/* Top-Right Anchored Close Button */}
+          <button
+            onClick={() => setShowSpecsHUD(false)}
+            className={`absolute top-4 right-4 sm:top-5 sm:right-5 w-6 h-6 flex items-center justify-center rounded-lg font-mono text-[9.5px] transition-colors cursor-pointer border ${
+              isWhite
+                ? "text-black/40 hover:text-black hover:bg-black/5 border-black/10"
+                : "text-white/40 hover:text-white hover:bg-white/10 border-white/10"
             }`}
+            title="Dismiss panel"
+            aria-label="Close Kit Specs"
           >
-            <svg
-              className={`w-4 sm:w-5 h-4 sm:h-5 ${
-                isLight ? "text-white" : "text-black"
-              }`}
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.47a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.47a2 2 0 00-1.34-2.23z" />
-            </svg>
+            ✕
+          </button>
+
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff5500]" />
+            <p className={`tracking-[0.2em] font-mono font-bold text-[11px] ${isWhite ? "text-black" : "text-white"}`}>
+              KIT SPECS
+            </p>
+          </div>
+          <div className={`w-full h-[1px] mb-4 ${isWhite ? "bg-black/10" : "bg-white/10"}`} />
+
+          <div className={`space-y-2.5 text-[10px] font-mono tracking-[0.14em] ${isWhite ? "text-black/75" : "text-white/80"}`}>
+            <p>SESSION : [19.08.2026]</p>
+            <p>TIMESTAMP : [{timeString}]</p>
+            <p className={`font-semibold pt-1 ${isWhite ? "text-black" : "text-white"}`}>
+              EDITION : [{sel.code}]
+            </p>
+            <p className={`font-semibold ${isWhite ? "text-black" : "text-white"}`}>
+              VALUATION : [{sel.price}]
+            </p>
           </div>
         </div>
+      )}
 
-        {/* Header Right */}
-        <div className="flex items-center gap-3 sm:gap-8">
+      {/* ── Right HUD: VAULT INTEL ──────────────────────────────────── */}
+      {showIntelHUD && (
+        <div
+          className={`fixed right-6 sm:right-10 bottom-[14%] w-72 sm:w-80 backdrop-blur-xl rounded-2xl p-6 sm:p-7 z-30 pointer-events-auto hidden lg:block transition-all ${
+            isWhite
+              ? "bg-[#faf7f0]/90 border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.07)] text-[#0c0c0c]"
+              : "bg-[#0a0a0a]/90 border border-white/12 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-[#888]"
+          }`}
+        >
+          {/* Top-Right Anchored Close Button */}
           <button
-            onClick={toggleTheme}
-            className={`hover:opacity-100 transition-opacity cursor-pointer ${
-              isLight ? "text-[#555]" : "text-[#777]"
+            onClick={() => setShowIntelHUD(false)}
+            className={`absolute top-4 right-4 sm:top-5 sm:right-5 w-6 h-6 flex items-center justify-center rounded-lg font-mono text-[9.5px] transition-colors cursor-pointer border ${
+              isWhite
+                ? "text-black/40 hover:text-black hover:bg-black/5 border-black/10"
+                : "text-white/40 hover:text-white hover:bg-white/10 border-white/10"
             }`}
+            title="Dismiss panel"
+            aria-label="Close Vault Intel"
           >
-            THEME
+            ✕
           </button>
-          <Link
-            href="/login"
-            className={`font-semibold hover:opacity-80 transition-opacity cursor-pointer hidden sm:inline-block ${
-              isLight ? "text-black" : "text-white"
-            }`}
-          >
-            DISCOVER
-          </Link>
+
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff5500]" />
+            <p className={`tracking-[0.2em] font-mono font-bold text-[11px] ${isWhite ? "text-black" : "text-white"}`}>
+              VAULT INTEL
+            </p>
+          </div>
+          <div className={`w-full h-[1px] mb-4 ${isWhite ? "bg-black/10" : "bg-white/10"}`} />
+
+          <div className={`space-y-2.5 text-[10px] font-mono tracking-[0.14em] ${isWhite ? "text-black/80" : "text-white/90"}`}>
+            <p>CLUB : [{sel.club}]</p>
+            <p
+              className={`leading-relaxed break-words pt-0.5 ${isWhite ? "text-black/70" : "text-white/80"}`}
+              title={sel.name}
+            >
+              SPEC : [{sel.name}]
+            </p>
+            <p className="text-[#ff5500] font-semibold pt-1">
+              STATUS : [ARCHIVED / VERIFIED]
+            </p>
+          </div>
+
+          {/* Quick Add to Bag Action Button */}
+          <div className="mt-4 pt-3 border-t border-black/5 dark:border-white/5">
+            <button
+              onClick={() => addToCart(sel, "L")}
+              className="w-full py-2.5 bg-gradient-to-r from-[#ff5500] to-[#e64000] hover:from-[#ff6614] hover:to-[#f04800] text-white font-mono text-[10px] font-bold tracking-wider rounded-xl transition-all shadow-[0_4px_15px_rgba(255,85,0,0.35)] cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <span>ADD TO BAG</span>
+              <span>•</span>
+              <span>{sel.price}</span>
+            </button>
+          </div>
         </div>
-      </header>
-
-      {/* ── Manifesto ──────────────────────────────────────────────── */}
-      <div
-        className={`absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 text-center text-[7.5px] sm:text-[10px] font-mono tracking-[0.12em] sm:tracking-[0.16em] uppercase leading-relaxed w-[90%] max-w-lg z-30 pointer-events-none ${
-          isLight ? "text-[#555]" : "text-[#666]"
-        }`}
-      >
-        <p>• THEJERSEYHUB / IMMERSIVE FOOTBALL ARCHIVE / 2026</p>
-        <p>EXPERIENCE THE FUTURE BEFORE IT ARRIVES</p>
-        <p className="hidden sm:block">
-          MATCH SPEC • SHADERS • PERFORMANCE WEAVE • CREATOR RUN
-        </p>
-        <p>BUY • ARCHIVE • DISCOVER</p>
-      </div>
-
-      {/* ── Coordinate marks ───────────────────────────────────────── */}
-      <div
-        className={`absolute top-[16%] left-[8%] sm:left-[14%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
-          isLight ? "text-black/25" : "text-white/20"
-        }`}
-      >
-        [X]
-      </div>
-      <div
-        className={`absolute top-[14%] right-[8%] sm:right-[16%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
-          isLight ? "text-black/25" : "text-white/20"
-        }`}
-      >
-        [X]
-      </div>
-      <div
-        className={`absolute bottom-[20%] left-[10%] sm:left-[21%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
-          isLight ? "text-black/25" : "text-white/20"
-        }`}
-      >
-        [X]
-      </div>
-      <div
-        className={`absolute bottom-[16%] right-[8%] sm:right-[10%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
-          isLight ? "text-black/25" : "text-white/20"
-        }`}
-      >
-        [X]
-      </div>
-
-      {/* ── Left HUD (desktop) ─────────────────────────────────────── */}
-      <div
-        className={`absolute left-8 sm:left-12 top-[42%] -translate-y-1/2 text-[10px] font-mono tracking-[0.14em] leading-5 z-30 pointer-events-none hidden lg:block ${
-          isLight ? "text-[#555]" : "text-[#666]"
-        }`}
-      >
-        <p
-          className={`tracking-[0.2em] font-bold ${
-            isLight ? "text-black" : "text-white"
-          }`}
-        >
-          KIT SPECS
-        </p>
-        <p className={isLight ? "text-black/20" : "text-white/20"}>---------</p>
-        <p className={`mt-2 ${isLight ? "text-black/80" : "text-white/90"}`}>
-          SESSION : [19.08.2026]
-        </p>
-        <p>TIMESTAMP : [{timeString}]</p>
-        <p
-          className={`mt-2 font-semibold ${
-            isLight ? "text-black" : "text-white"
-          }`}
-        >
-          EDITION : [{sel.code}]
-        </p>
-        <p
-          className={`font-semibold ${
-            isLight ? "text-black" : "text-white"
-          }`}
-        >
-          VALUATION : [{sel.price}]
-        </p>
-      </div>
-
-      {/* ── Right HUD (desktop) ────────────────────────────────────── */}
-      <div
-        className={`absolute right-8 sm:right-12 bottom-[20%] text-[10px] font-mono tracking-[0.14em] leading-5 z-30 pointer-events-none text-right hidden lg:block ${
-          isLight ? "text-[#555]" : "text-[#666]"
-        }`}
-      >
-        <p
-          className={`tracking-[0.2em] font-bold ${
-            isLight ? "text-black" : "text-white"
-          }`}
-        >
-          VAULT INTEL
-        </p>
-        <p className={isLight ? "text-black/20" : "text-white/20"}>---------</p>
-        <p className={`mt-2 ${isLight ? "text-black/80" : "text-white/90"}`}>
-          CLUB : [{sel.club}]
-        </p>
-        <p className="truncate max-w-[200px]">SPEC : [{sel.name}]</p>
-        <p className="mt-2 text-[#ff5500]">STATUS : [ARCHIVED / VERIFIED]</p>
-      </div>
+      )}
 
       {/* ── 3D Circular Carousel — DOM-driven, no React state ──────── */}
       <div className="absolute inset-0 z-20 pointer-events-none">
@@ -473,12 +429,12 @@ export default function HomePage() {
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer
         className={`fixed bottom-0 left-0 w-full z-40 px-4 sm:px-10 py-5 sm:py-6 flex items-center justify-between text-[9.5px] sm:text-[10px] font-mono tracking-[0.14em] sm:tracking-[0.18em] uppercase pointer-events-none ${
-          isLight ? "text-[#666]" : "text-[#666]"
+          isWhite ? "text-black/60" : "text-[#888]"
         }`}
       >
         <div className="flex items-center gap-1.5 pointer-events-auto">
           <span className="text-[#ff5500] font-bold">©</span>
-          <span className={isLight ? "text-black" : "text-white"}>
+          <span className={isWhite ? "text-black font-semibold" : "text-white"}>
             2026 [THEJERSEYHUB]
           </span>
         </div>
@@ -489,10 +445,10 @@ export default function HomePage() {
               onClick={() => bringToFront(i)}
               className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                 i === currentIndex
-                  ? isLight
+                  ? isWhite
                     ? "w-5 sm:w-8 bg-black"
                     : "w-5 sm:w-8 bg-white"
-                  : isLight
+                  : isWhite
                   ? "w-1.5 sm:w-2 bg-black/20 hover:bg-black/50"
                   : "w-1.5 sm:w-2 bg-white/20 hover:bg-white/50"
               }`}
@@ -500,16 +456,43 @@ export default function HomePage() {
             />
           ))}
         </div>
-        <div className="pointer-events-auto">
-          <span
-            className={`hover:opacity-100 transition-opacity cursor-pointer ${
-              isLight ? "text-black" : "text-white"
+        <div className="flex items-center gap-4 pointer-events-auto">
+          {(!showSpecsHUD || !showIntelHUD) && (
+            <button
+              onClick={() => {
+                setShowSpecsHUD(true);
+                setShowIntelHUD(true);
+              }}
+              className="hover:opacity-80 transition-opacity cursor-pointer text-[#ff5500] font-semibold"
+            >
+              [RESTORE HUDS]
+            </button>
+          )}
+          <button
+            onClick={() => setContactModalOpen(true)}
+            className={`transition-opacity hover:opacity-70 cursor-pointer font-mono ${
+              isWhite ? "text-black" : "text-white"
             }`}
           >
             CONTACT
-          </span>
+          </button>
         </div>
       </footer>
+
+      {/* ── Authentication Modal (Theme-responsive with gradient look) ── */}
+      <AuthModal
+        isOpen={authModalOpen}
+        initialMode={authMode}
+        theme={theme}
+        onClose={() => setAuthModalOpen(false)}
+      />
+
+      {/* ── Contact Desk Modal (Sends to nantio.official@gmail.com) ─── */}
+      <ContactModal
+        isOpen={contactModalOpen}
+        theme={theme}
+        onClose={() => setContactModalOpen(false)}
+      />
     </main>
   );
 }
