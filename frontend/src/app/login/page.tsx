@@ -23,7 +23,10 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await login({ email: email.trim(), password });
+      const res = await login(email.trim(), password);
+      if (!res.success) {
+        setError(res.message?.toUpperCase() || "AUTHENTICATION_FAILED");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "AUTHENTICATION_FAILED";
       setError(msg.toUpperCase());

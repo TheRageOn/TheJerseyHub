@@ -34,8 +34,6 @@ export const viewport: Viewport = {
   themeColor: "#060606",
 };
 
-import { AuthProvider } from "@/context/AuthContext";
-
 export default function RootLayout({
   children,
 }: {

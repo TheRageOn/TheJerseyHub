@@ -164,7 +164,7 @@ export default function PrivacyPage() {
             >
               <div className="flex items-center justify-between border-b border-dashed border-current/15 pb-2">
                 <h2 className="font-mono text-[12px] sm:text-[13px] font-bold tracking-[0.16em] uppercase">
-                  {sec.num} // {sec.title}
+                  {`${sec.num} // ${sec.title}`}
                 </h2>
                 <span className="font-mono text-[9px] tracking-[0.12em] opacity-35">
                   [SECURITY.VERIFIED]

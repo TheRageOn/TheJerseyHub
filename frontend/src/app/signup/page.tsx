@@ -34,12 +34,10 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      await register({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        password,
-      });
+      const res = await register(name.trim(), email.trim(), password, phone.trim());
+      if (!res.success) {
+        setError(res.message?.toUpperCase() || "REGISTRATION_FAILED");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "REGISTRATION_FAILED";
       setError(msg.toUpperCase());

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { JERSEYS } from "@/data/jerseys";
 import Navbar from "@/components/landing/Navbar";
 import AuthModal from "@/components/auth/AuthModal";
