@@ -21,10 +21,16 @@ exports.registerUser = async (data) => {
     phone,
   });
 
+  const token = generateToken(user._id, user.role);
+
   return {
-    id: user._id,
-    name: user.name,
-    email: user.email,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
   };
 };
 
@@ -42,7 +48,7 @@ exports.loginUser = async (data) => {
       token,
       user: {
         id: "admin",
-        name: "Admin",
+        name: process.env.ADMIN_NAME || "Admin",
         email: process.env.ADMIN_EMAIL,
         role: "admin",
       },

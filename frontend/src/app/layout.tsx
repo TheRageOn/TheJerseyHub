@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { CartProvider } from "@/context/CartContext";
+import CartDrawer from "@/components/cart/CartDrawer";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -36,9 +40,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={manrope.variable}>
-      <body className="font-body bg-[#060606] text-[#faf6f0] antialiased">
-        {children}
+    <html lang="en" className={manrope.variable} suppressHydrationWarning>
+      <body className="font-body antialiased transition-colors duration-500" suppressHydrationWarning>
+        <ThemeProvider>
+          <AuthProvider>
+            <CartProvider>
+              {children}
+              <CartDrawer />
+            </CartProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

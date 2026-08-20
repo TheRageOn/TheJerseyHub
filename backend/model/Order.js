@@ -66,10 +66,6 @@ const shippingAddressSchema = new mongoose.Schema(
       type: String,
     },
 
-    postalCode: {
-      type: String,
-    },
-
     country: {
       type: String,
       default: "Nepal",
