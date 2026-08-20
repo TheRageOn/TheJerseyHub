@@ -25,44 +25,51 @@
 html, body {
   background-color: var(--bg-color);
   color: var(--text-main);
-  overflow: hidden;
-  height: 100dvh;
-  width: 100vw;
+  overflow-x: hidden;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
   font-family: var(--font-manrope), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
-  touch-action: pan-y;
 }
 
-/* ── Film grain — composited on its own GPU layer ──────────────── */
+/* ── Universal High-Def Film Grain ──────────────────────────────── */
 .film-grain {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 50;
-  opacity: 0.16;
+  opacity: 0.28;
   will-change: opacity;
   transform: translateZ(0);
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-repeat: repeat;
-  background-size: 256px 256px;
+  background-size: 140px 140px;
 }
 
-/* ── Theme: Burnt Orange ───────────────────────────────────────── */
-.theme-orange {
+.theme-light .film-grain,
+.theme-light ~ .film-grain,
+[class*="theme-light"] .film-grain {
+  opacity: 0.54;
+  mix-blend-mode: multiply;
+  filter: contrast(180%) brightness(100%);
+}
+
+/* ── Theme 1: Tactical Off-White Grain ──────────────────────────── */
+.theme-light {
   background: radial-gradient(
     circle at 50% 45%,
-    #d94e09 0%,
-    #9e3304 35%,
-    #4a1500 70%,
-    #140500 100%
+    #f2eee7 0%,
+    #e9e3da 35%,
+    #ddd6cb 70%,
+    #d2c9bd 100%
   );
-  color: #faf6f0;
+  color: #111111;
 }
 
-/* ── Theme: Obsidian Noir ──────────────────────────────────────── */
+/* ── Theme 2: Obsidian Noir ──────────────────────────────────────── */
 .theme-black {
   background: radial-gradient(
     circle at 50% 48%,
@@ -72,4 +79,31 @@ html, body {
     #000 100%
   );
   color: #d0d0d0;
+}
+
+/* ── Floating drift animation for auth showcase ──────────────────── */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(1.5deg);
+  }
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(14px) rotate(-1.5deg);
+  }
+}
+
+.float-slow {
+  animation: floatSlow 7s ease-in-out infinite;
+}
+
+.float-reverse {
+  animation: floatReverse 6s ease-in-out infinite;
 }

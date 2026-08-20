@@ -1,16 +1,18 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/user.model");
+const User = require("../model/User");
 
-// Protect routes that require authentication
+// Protect routes that require authentication (supports httpOnly cookie & Bearer header)
 const protect = async (req, res, next) => {
   try {
     let token;
 
-    const authHeader = req.headers.authorization;
-
-    // Extract token from Authorization header
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
+    // 1. Check httpOnly cookie first
+    if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+    }
+    // 2. Check Authorization Bearer header as fallback
+    else if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
     }
 
     if (!token) {
@@ -22,6 +24,16 @@ const protect = async (req, res, next) => {
 
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.id === "admin") {
+      req.user = {
+        id: "admin",
+        name: process.env.ADMIN_NAME || "Admin",
+        email: process.env.ADMIN_EMAIL,
+        role: "admin",
+      };
+      return next();
+    }
 
     // Get user details and exclude password
     const user = await User.findById(decoded.id).select("-password");
@@ -42,12 +54,11 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
-
     next();
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired token.",
+      message: "Invalid or expired session.",
     });
   }
 };

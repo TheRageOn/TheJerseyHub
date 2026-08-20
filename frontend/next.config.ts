@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Allow local IP connections from mobile devices on your Wi-Fi network
+  allowedDevOrigins: ["192.168.1.3"],
+
   // SVGs are served from /public — skip image optimization pipeline for them
   images: {
     remotePatterns: [

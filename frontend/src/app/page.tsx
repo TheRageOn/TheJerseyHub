@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { JERSEYS } from "@/data/jerseys";
 
 /* ─── Constants ───────────────────────────────────────────────────── */
@@ -33,16 +34,9 @@ function radius(w: number) {
 
 /* ─── Component ───────────────────────────────────────────────────── */
 export default function HomePage() {
-  /*
-   * Only these states cause re-renders — all are infrequent:
-   *   currentIndex  → changes when user switches jerseys
-   *   soundOn       → on toggle
-   *   theme         → on toggle
-   *   timeString    → once per second
-   */
   const [currentIndex, setCurrentIndex] = useState(0);
   const [soundOn, setSoundOn] = useState(true);
-  const [theme, setTheme] = useState<"orange" | "black">("black");
+  const [theme, setTheme] = useState<"light" | "black">("black");
   const [timeString, setTimeString] = useState("00:00:00");
 
   // Animation values — refs only, zero re-renders at 60fps
@@ -106,7 +100,7 @@ export default function HomePage() {
   }, [soundOn]);
 
   const toggleTheme = useCallback(
-    () => setTheme((p) => (p === "orange" ? "black" : "orange")),
+    () => setTheme((p) => (p === "light" ? "black" : "light")),
     [],
   );
 
@@ -158,7 +152,7 @@ export default function HomePage() {
         el.style.opacity = String(cp.opacity);
         el.style.zIndex = String(cp.zIndex);
         el.style.filter = front
-          ? `drop-shadow(${shX}px ${shY}px 45px rgba(0,0,0,.85)) brightness(1.05) contrast(1.05)`
+          ? `drop-shadow(${shX}px ${shY}px 45px rgba(0,0,0,.75)) brightness(1.05) contrast(1.05)`
           : `brightness(${0.25 + cp.depth * 0.55}) contrast(1.15) grayscale(${(1 - cp.depth) * 0.5})`;
 
         if (sh) {
@@ -248,13 +242,13 @@ export default function HomePage() {
     targetRot.current = front + d;
   }, []);
 
-  const isOrange = theme === "orange";
+  const isLight = theme === "light";
   const sel = JERSEYS[currentIndex];
 
   return (
     <main
       className={`relative w-screen h-screen overflow-hidden select-none transition-colors duration-700 ${
-        isOrange ? "theme-orange" : "theme-black"
+        isLight ? "theme-light text-[#1a1a1a]" : "theme-black text-[#d0d0d0]"
       }`}
       onTouchStart={onTS}
       onTouchMove={onTM}
@@ -263,29 +257,42 @@ export default function HomePage() {
       {/* Film Grain — GPU-composited fixed layer */}
       <div
         className="film-grain"
-        style={{ opacity: isOrange ? 0.16 : 0.3 }}
+        style={{ opacity: isLight ? 0.18 : 0.3 }}
       />
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="fixed top-0 left-0 w-full z-40 px-4 sm:px-10 py-5 sm:py-7 flex items-center justify-between text-[10px] sm:text-[11px] font-mono tracking-[0.14em] sm:tracking-[0.18em] uppercase">
         <div className="flex items-center gap-3 sm:gap-8">
-          <span className="text-white font-semibold tracking-[0.18em] sm:tracking-[0.22em] cursor-pointer">
+          <span
+            className={`font-semibold tracking-[0.18em] sm:tracking-[0.22em] cursor-pointer ${
+              isLight ? "text-black" : "text-white"
+            }`}
+          >
             [THEJERSEYHUB]
           </span>
           <button
             onClick={toggleSound}
-            className={`hover:text-white transition-colors cursor-pointer ${
-              isOrange ? "text-[#c49d83]" : "text-[#666]"
+            className={`hover:opacity-100 transition-opacity cursor-pointer ${
+              isLight ? "text-[#555]" : "text-[#777]"
             }`}
           >
             SOUND
           </button>
         </div>
 
+        {/* Center Emblem */}
         <div className="absolute left-1/2 -translate-x-1/2 top-4 sm:top-6">
-          <div className="w-8 sm:w-10 h-5 sm:h-7 bg-white rounded-[2px] flex items-center justify-center px-1 shadow-[0_0_15px_rgba(255,255,255,.15)] cursor-pointer hover:scale-105 transition-transform">
+          <div
+            className={`w-8 sm:w-10 h-5 sm:h-7 rounded-[2px] flex items-center justify-center px-1 cursor-pointer hover:scale-105 transition-transform ${
+              isLight
+                ? "bg-black text-white shadow-[0_0_15px_rgba(0,0,0,0.15)]"
+                : "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+            }`}
+          >
             <svg
-              className="w-4 sm:w-5 h-4 sm:h-5 text-black"
+              className={`w-4 sm:w-5 h-4 sm:h-5 ${
+                isLight ? "text-white" : "text-black"
+              }`}
               viewBox="0 0 24 24"
               fill="currentColor"
             >
@@ -294,30 +301,31 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Header Right */}
         <div className="flex items-center gap-3 sm:gap-8">
           <button
             onClick={toggleTheme}
-            className={`hover:text-white transition-colors cursor-pointer ${
-              isOrange ? "text-[#c49d83]" : "text-[#666]"
+            className={`hover:opacity-100 transition-opacity cursor-pointer ${
+              isLight ? "text-[#555]" : "text-[#777]"
             }`}
           >
             THEME
           </button>
-          <button
-            onClick={() =>
-              (targetRot.current = Math.round(targetRot.current) + 1)
-            }
-            className="hover:text-white transition-colors cursor-pointer text-white font-semibold hidden sm:inline-block"
+          <Link
+            href="/login"
+            className={`font-semibold hover:opacity-80 transition-opacity cursor-pointer hidden sm:inline-block ${
+              isLight ? "text-black" : "text-white"
+            }`}
           >
             DISCOVER
-          </button>
+          </Link>
         </div>
       </header>
 
       {/* ── Manifesto ──────────────────────────────────────────────── */}
       <div
         className={`absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 text-center text-[7.5px] sm:text-[10px] font-mono tracking-[0.12em] sm:tracking-[0.16em] uppercase leading-relaxed w-[90%] max-w-lg z-30 pointer-events-none ${
-          isOrange ? "text-[#d49f7e]" : "text-[#555]"
+          isLight ? "text-[#555]" : "text-[#666]"
         }`}
       >
         <p>• THEJERSEYHUB / IMMERSIVE FOOTBALL ARCHIVE / 2026</p>
@@ -329,46 +337,88 @@ export default function HomePage() {
       </div>
 
       {/* ── Coordinate marks ───────────────────────────────────────── */}
-      <div className="absolute top-[16%] left-[8%] sm:left-[14%] text-white/20 font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none">
+      <div
+        className={`absolute top-[16%] left-[8%] sm:left-[14%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
+          isLight ? "text-black/25" : "text-white/20"
+        }`}
+      >
         [X]
       </div>
-      <div className="absolute top-[14%] right-[8%] sm:right-[16%] text-white/20 font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none">
+      <div
+        className={`absolute top-[14%] right-[8%] sm:right-[16%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
+          isLight ? "text-black/25" : "text-white/20"
+        }`}
+      >
         [X]
       </div>
-      <div className="absolute bottom-[20%] left-[10%] sm:left-[21%] text-white/20 font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none">
+      <div
+        className={`absolute bottom-[20%] left-[10%] sm:left-[21%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
+          isLight ? "text-black/25" : "text-white/20"
+        }`}
+      >
         [X]
       </div>
-      <div className="absolute bottom-[16%] right-[8%] sm:right-[10%] text-white/20 font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none">
+      <div
+        className={`absolute bottom-[16%] right-[8%] sm:right-[10%] font-mono text-[10px] sm:text-xs tracking-widest pointer-events-none ${
+          isLight ? "text-black/25" : "text-white/20"
+        }`}
+      >
         [X]
       </div>
 
       {/* ── Left HUD (desktop) ─────────────────────────────────────── */}
       <div
         className={`absolute left-8 sm:left-12 top-[42%] -translate-y-1/2 text-[10px] font-mono tracking-[0.14em] leading-5 z-30 pointer-events-none hidden lg:block ${
-          isOrange ? "text-[#c99573]" : "text-[#666]"
+          isLight ? "text-[#555]" : "text-[#666]"
         }`}
       >
-        <p className="text-white tracking-[0.2em] font-bold">KIT SPECS</p>
-        <p className="text-white/20">---------</p>
-        <p className="mt-2 text-white/90">SESSION : [19.08.2026]</p>
+        <p
+          className={`tracking-[0.2em] font-bold ${
+            isLight ? "text-black" : "text-white"
+          }`}
+        >
+          KIT SPECS
+        </p>
+        <p className={isLight ? "text-black/20" : "text-white/20"}>---------</p>
+        <p className={`mt-2 ${isLight ? "text-black/80" : "text-white/90"}`}>
+          SESSION : [19.08.2026]
+        </p>
         <p>TIMESTAMP : [{timeString}]</p>
-        <p className="mt-2 text-white font-semibold">
+        <p
+          className={`mt-2 font-semibold ${
+            isLight ? "text-black" : "text-white"
+          }`}
+        >
           EDITION : [{sel.code}]
         </p>
-        <p className="text-white font-semibold">VALUATION : [{sel.price}]</p>
+        <p
+          className={`font-semibold ${
+            isLight ? "text-black" : "text-white"
+          }`}
+        >
+          VALUATION : [{sel.price}]
+        </p>
       </div>
 
       {/* ── Right HUD (desktop) ────────────────────────────────────── */}
       <div
         className={`absolute right-8 sm:right-12 bottom-[20%] text-[10px] font-mono tracking-[0.14em] leading-5 z-30 pointer-events-none text-right hidden lg:block ${
-          isOrange ? "text-[#c99573]" : "text-[#666]"
+          isLight ? "text-[#555]" : "text-[#666]"
         }`}
       >
-        <p className="text-white tracking-[0.2em] font-bold">VAULT INTEL</p>
-        <p className="text-white/20">---------</p>
-        <p className="mt-2 text-white/90">CLUB : [{sel.club}]</p>
+        <p
+          className={`tracking-[0.2em] font-bold ${
+            isLight ? "text-black" : "text-white"
+          }`}
+        >
+          VAULT INTEL
+        </p>
+        <p className={isLight ? "text-black/20" : "text-white/20"}>---------</p>
+        <p className={`mt-2 ${isLight ? "text-black/80" : "text-white/90"}`}>
+          CLUB : [{sel.club}]
+        </p>
         <p className="truncate max-w-[200px]">SPEC : [{sel.name}]</p>
-        <p className="mt-2 text-[#ff9254]">STATUS : [ARCHIVED / VERIFIED]</p>
+        <p className="mt-2 text-[#ff5500]">STATUS : [ARCHIVED / VERIFIED]</p>
       </div>
 
       {/* ── 3D Circular Carousel — DOM-driven, no React state ──────── */}
@@ -399,7 +449,7 @@ export default function HomePage() {
               hovered.current = null;
             }}
           >
-            {/* Specular sheen overlay — always in DOM, opacity toggled by RAF */}
+            {/* Specular sheen overlay */}
             <div
               ref={(el) => {
                 sheenEls.current[idx] = el;
@@ -423,12 +473,14 @@ export default function HomePage() {
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer
         className={`fixed bottom-0 left-0 w-full z-40 px-4 sm:px-10 py-5 sm:py-6 flex items-center justify-between text-[9.5px] sm:text-[10px] font-mono tracking-[0.14em] sm:tracking-[0.18em] uppercase pointer-events-none ${
-          isOrange ? "text-[#c99573]" : "text-[#666]"
+          isLight ? "text-[#666]" : "text-[#666]"
         }`}
       >
         <div className="flex items-center gap-1.5 pointer-events-auto">
           <span className="text-[#ff5500] font-bold">©</span>
-          <span className="text-white">2026 [THEJERSEYHUB]</span>
+          <span className={isLight ? "text-black" : "text-white"}>
+            2026 [THEJERSEYHUB]
+          </span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
           {JERSEYS.map((j, i) => (
@@ -437,7 +489,11 @@ export default function HomePage() {
               onClick={() => bringToFront(i)}
               className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                 i === currentIndex
-                  ? "w-5 sm:w-8 bg-white"
+                  ? isLight
+                    ? "w-5 sm:w-8 bg-black"
+                    : "w-5 sm:w-8 bg-white"
+                  : isLight
+                  ? "w-1.5 sm:w-2 bg-black/20 hover:bg-black/50"
                   : "w-1.5 sm:w-2 bg-white/20 hover:bg-white/50"
               }`}
               aria-label={`Select ${j.name}`}
@@ -445,7 +501,11 @@ export default function HomePage() {
           ))}
         </div>
         <div className="pointer-events-auto">
-          <span className="hover:text-white transition-colors cursor-pointer text-white">
+          <span
+            className={`hover:opacity-100 transition-opacity cursor-pointer ${
+              isLight ? "text-black" : "text-white"
+            }`}
+          >
             CONTACT
           </span>
         </div>

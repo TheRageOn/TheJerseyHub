@@ -30,6 +30,8 @@ export const viewport: Viewport = {
   themeColor: "#060606",
 };
 
+import { AuthProvider } from "@/context/AuthContext";
+
 export default function RootLayout({
   children,
 }: {
@@ -38,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={manrope.variable}>
       <body className="font-body bg-[#060606] text-[#faf6f0] antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
