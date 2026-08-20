@@ -1,11 +1,18 @@
 const Joi = require("joi");
 
 const registerSchema = Joi.object({
-  name: Joi.string().trim().min(2).max(50).required().messages({
-    "string.empty": "Name is required.",
-    "string.min": "Name must be at least 2 characters long.",
-    "any.required": "Name is required.",
-  }),
+  name: Joi.string()
+    .trim()
+    .min(2)
+    .max(50)
+    .pattern(/^[A-Z]/)
+    .required()
+    .messages({
+      "string.empty": "Name is required.",
+      "string.min": "Name must be at least 2 characters long.",
+      "string.pattern.base": "Name must start with a capital letter.",
+      "any.required": "Name is required.",
+    }),
 
   email: Joi.string().trim().email().required().messages({
     "string.email": "Please provide a valid email address.",
@@ -13,19 +20,27 @@ const registerSchema = Joi.object({
     "any.required": "Email is required.",
   }),
 
-  password: Joi.string().trim().min(6).max(128).required().messages({
-    "string.empty": "Password is required.",
-    "string.min": "Password must be at least 6 characters long.",
-    "any.required": "Password is required.",
-  }),
+  password: Joi.string()
+    .trim()
+    .min(6)
+    .max(128)
+    .pattern(/^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).+$/)
+    .required()
+    .messages({
+      "string.empty": "Password is required.",
+      "string.min": "Password must be at least 6 characters long.",
+      "string.pattern.base":
+        "Password must contain a capital letter, a number, and a special character.",
+      "any.required": "Password is required.",
+    }),
 
   phone: Joi.string()
     .trim()
-    .pattern(/^[0-9+\-\s()]{7,20}$/)
+    .pattern(/^\d{10}$/)
     .required()
     .messages({
       "string.empty": "Phone number is required.",
-      "string.pattern.base": "Phone number is not valid.",
+      "string.pattern.base": "Phone number must be exactly 10 digits.",
       "any.required": "Phone number is required.",
     }),
 });
@@ -37,9 +52,8 @@ const loginSchema = Joi.object({
     "any.required": "Email is required.",
   }),
 
-  password: Joi.string().trim().min(6).required().messages({
+  password: Joi.string().trim().required().messages({
     "string.empty": "Password is required.",
-    "string.min": "Password must be at least 6 characters long.",
     "any.required": "Password is required.",
   }),
 });

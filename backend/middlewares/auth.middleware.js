@@ -11,7 +11,10 @@ const protect = async (req, res, next) => {
       token = req.cookies.token;
     }
     // 2. Check Authorization Bearer header as fallback
-    else if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+    else if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer ")
+    ) {
       token = req.headers.authorization.split(" ")[1];
     }
 
@@ -63,6 +66,19 @@ const protect = async (req, res, next) => {
   }
 };
 
+// Allow access only to administrators
+const isAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required.",
+    });
+  }
+
+  next();
+};
+
 module.exports = {
   protect,
+  isAdmin,
 };
