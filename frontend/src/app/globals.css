@@ -12,6 +12,7 @@
   --bg-color: #f2efe9;
   --text-main: #0c0c0c;
   --accent-orange: #ff5500;
+  --font-manrope: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 html, body {

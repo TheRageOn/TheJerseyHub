@@ -1,18 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { ToastProvider } from "@/context/ToastContext";
 import CartDrawer from "@/components/cart/CartDrawer";
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: "--font-manrope",
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  preload: true,
-});
 
 export const metadata: Metadata = {
   title: "TheJerseyHub — Authentic Football Culture & Collector Kits",
@@ -40,13 +32,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={manrope.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className="font-body antialiased transition-colors duration-500" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
             <CartProvider>
-              {children}
-              <CartDrawer />
+              <ToastProvider>
+                {children}
+                <CartDrawer />
+              </ToastProvider>
             </CartProvider>
           </AuthProvider>
         </ThemeProvider>

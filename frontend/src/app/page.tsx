@@ -2,22 +2,21 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { JERSEYS } from "@/data/jerseys";
 import Navbar from "@/components/landing/Navbar";
 import AuthModal from "@/components/auth/AuthModal";
 import ContactModal from "@/components/contact/ContactModal";
 import { useTheme } from "@/context/ThemeContext";
 import { useCart } from "@/context/CartContext";
+import { productService, DBJersey, FALLBACK_CATALOG } from "@/services/productService";
 
 /* ─── Constants ───────────────────────────────────────────────────── */
-const N = JERSEYS.length;
-const ANGLE_STEP = (2 * Math.PI) / N;
 const LERP_PARALLAX = 0.08;
 const LERP_CAROUSEL = 0.1;
 
 /** Carousel math: returns visual props for jersey `i` at given `rotation`. */
-function carouselProps(i: number, rot: number) {
-  const a = (i - rot) * ANGLE_STEP;
+function carouselProps(i: number, rot: number, total: number) {
+  const angleStep = (2 * Math.PI) / Math.max(total, 1);
+  const a = (i - rot) * angleStep;
   const x = Math.sin(a);
   const depth = (Math.cos(a) + 1) * 0.5; // 0=back, 1=front
   return {
@@ -38,14 +37,9 @@ function radius(w: number) {
 
 /* ─── Component ───────────────────────────────────────────────────── */
 export default function HomePage() {
-  /*
-   * States:
-   *   currentIndex      → changes when user switches jerseys
-   *   timeString        → once per second
-   *   authModalOpen     → for signup / login modal popup
-   *   authMode          → 'login' | 'signup'
-   *   contactModalOpen  → for contact email modal
-   */
+  const [jerseys, setJerseys] = useState<DBJersey[]>(() =>
+    FALLBACK_CATALOG.filter((j) => j.showOnLanding)
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const { theme, isWhite } = useTheme();
   const { addToCart } = useCart();
@@ -67,6 +61,14 @@ export default function HomePage() {
   const jerseyEls = useRef<(HTMLDivElement | null)[]>([]);
   const sheenEls = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Total count
+  const N = Math.max(jerseys.length, 1);
+  const jerseysRef = useRef(jerseys);
+
+  useEffect(() => {
+    jerseysRef.current = jerseys;
+  }, [jerseys]);
+
   // Swipe state
   const swipe = useRef({
     sx: 0,
@@ -77,6 +79,15 @@ export default function HomePage() {
     active: false,
   });
   const wheelSnap = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch real-time products from MongoDB backend on mount
+  useEffect(() => {
+    productService.getLandingJerseys().then((data) => {
+      if (data && data.length > 0) {
+        setJerseys(data);
+      }
+    });
+  }, []);
 
   const handleOpenAuth = useCallback((mode: "login" | "signup") => {
     setAuthMode(mode);
@@ -100,6 +111,8 @@ export default function HomePage() {
 
     let raf: number;
     const tick = () => {
+      const currentList = jerseysRef.current;
+      const count = Math.max(currentList.length, 1);
       const m = mouse.current;
       m.x += (m.tx - m.x) * LERP_PARALLAX;
       m.y += (m.ty - m.y) * LERP_PARALLAX;
@@ -115,12 +128,12 @@ export default function HomePage() {
         snY = 50 + m.y * 35;
       const r = radius(window.innerWidth);
 
-      for (let i = 0; i < N; i++) {
+      for (let i = 0; i < count; i++) {
         const el = jerseyEls.current[i];
         const sh = sheenEls.current[i];
         if (!el) continue;
 
-        const cp = carouselProps(i, rot);
+        const cp = carouselProps(i, rot, count);
         const front = cp.depth > 0.85;
         const hov = hovered.current === i && front;
         const sc = cp.scale * (hov ? 1.04 : 1);
@@ -144,11 +157,11 @@ export default function HomePage() {
         }
       }
 
-      // Only trigger React when the active jersey actually changes
-      const idx = ((Math.round(targetRot.current) % N) + N) % N;
-      if (idx !== lastIdx.current) {
-        lastIdx.current = idx;
-        setCurrentIndex(idx);
+      // Check for index change
+      const raw = ((Math.round(rot) % count) + count) % count;
+      if (raw !== lastIdx.current) {
+        lastIdx.current = raw;
+        setCurrentIndex(raw);
       }
 
       raf = requestAnimationFrame(tick);
@@ -162,109 +175,91 @@ export default function HomePage() {
     };
   }, []);
 
-  /* ─── Touch swipe ───────────────────────────────────────────────── */
-  const onTS = (e: React.TouchEvent) => {
+  /* ─── Touch / Swipe Handlers ────────────────────────────────────── */
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0];
-    swipe.current = {
-      sx: t.clientX,
-      sy: t.clientY,
-      lx: t.clientX,
-      sRot: targetRot.current,
-      sTime: Date.now(),
-      active: false,
-    };
-  };
-  const onTM = (e: React.TouchEvent) => {
     const s = swipe.current;
-    const dx = e.touches[0].clientX - s.sx;
-    const dy = e.touches[0].clientY - s.sy;
-    if (!s.active && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10)
-      s.active = true;
-    if (s.active) {
-      s.lx = e.touches[0].clientX;
-      targetRot.current = s.sRot - dx / 220;
-    }
-  };
-  const onTE = () => {
+    s.sx = s.lx = t.clientX;
+    s.sy = t.clientY;
+    s.sRot = curRot.current;
+    s.sTime = Date.now();
+    s.active = true;
+  }, []);
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    const s = swipe.current;
+    if (!s.active) return;
+    const t = e.touches[0];
+    s.lx = t.clientX;
+    const dx = t.clientX - s.sx;
+    targetRot.current = s.sRot - (dx / window.innerWidth) * (N * 0.9);
+  }, [N]);
+
+  const onTouchEnd = useCallback(() => {
     const s = swipe.current;
     if (!s.active) return;
     s.active = false;
-    const elapsed = Math.max(Date.now() - s.sTime, 1);
-    const v = (s.lx - s.sx) / elapsed;
-    if (Math.abs(v) > 0.3) targetRot.current += -v * 0.35;
-    targetRot.current = Math.round(targetRot.current);
-  };
-
-  /* ─── Trackpad / wheel ──────────────────────────────────────────── */
-  useEffect(() => {
-    const onW = (e: WheelEvent) => {
-      const d =
-        Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      targetRot.current += d * 0.002;
-      if (wheelSnap.current) clearTimeout(wheelSnap.current);
-      wheelSnap.current = setTimeout(
-        () => (targetRot.current = Math.round(targetRot.current)),
-        180,
-      );
-    };
-    window.addEventListener("wheel", onW, { passive: true });
-    return () => window.removeEventListener("wheel", onW);
+    const dt = Math.max(Date.now() - s.sTime, 1);
+    const vx = (s.lx - s.sx) / dt;
+    const fl = Math.abs(vx) > 0.4 ? Math.sign(vx) * -1 : 0;
+    targetRot.current = Math.round(targetRot.current + fl * 0.4);
   }, []);
 
-  /* ─── Bring any jersey to front via shortest path ───────────────── */
-  const bringToFront = useCallback((idx: number) => {
-    const front = Math.round(targetRot.current);
-    const fi = ((front % N) + N) % N;
-    let d = idx - fi;
-    if (d > N / 2) d -= N;
-    if (d < -N / 2) d += N;
-    targetRot.current = front + d;
+  /* ─── Wheel Handler ─────────────────────────────────────────────── */
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(delta) < 4) return;
+    targetRot.current += delta * 0.003;
+    if (wheelSnap.current) clearTimeout(wheelSnap.current);
+    wheelSnap.current = setTimeout(() => {
+      targetRot.current = Math.round(targetRot.current);
+    }, 120);
   }, []);
 
-  const sel = JERSEYS[currentIndex];
+  /* ─── Bring index to front ───────────────────────────────────────── */
+  const bringToFront = useCallback(
+    (idx: number) => {
+      const cur = curRot.current;
+      const base = Math.floor(cur / N) * N;
+      let cand = base + idx;
+      if (cand - cur > N / 2) cand -= N;
+      if (cand - cur < -N / 2) cand += N;
+      targetRot.current = cand;
+    },
+    [N]
+  );
+
+  const sel = jerseys[currentIndex] || jerseys[0] || FALLBACK_CATALOG[0];
 
   return (
     <main
-      className={`relative w-screen h-screen overflow-hidden select-none transition-colors duration-700 ${
-        isWhite ? "theme-white" : "theme-black"
+      className={`relative h-screen w-screen overflow-hidden select-none transition-colors duration-500 ${
+        isWhite
+          ? "theme-white bg-[#faf7f0] text-[#0c0c0c]"
+          : "theme-black bg-[#060606] text-white"
       }`}
-      onTouchStart={onTS}
-      onTouchMove={onTM}
-      onTouchEnd={onTE}
+      onWheel={onWheel}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
-      {/* Tactile High-Pass Film Grain Overlay */}
-      <div
-        className="film-grain"
-        style={{ opacity: isWhite ? 0.28 : 0.18 }}
-      />
+      {/* ── Film Grain ─────────────────────────────────────────────── */}
+      <div className="film-grain" style={{ opacity: isWhite ? 0.28 : 0.18 }} />
 
-      {/* ── Top Marquee Header Bar ─────────────────────────────────── */}
+      {/* ── Background Coordinate Marks ────────────────────────────── */}
       <div
-        className={`fixed top-0 left-0 right-0 z-50 h-8 backdrop-blur-md border-b flex items-center justify-between px-6 sm:px-10 text-[8.5px] sm:text-[9.5px] font-mono tracking-[0.16em] sm:tracking-[0.2em] uppercase select-none pointer-events-auto transition-colors ${
-          isWhite
-            ? "bg-[#faf7f0]/95 border-black/10 text-[#0c0c0c]"
-            : "bg-[#070707]/95 border-white/10 text-white"
+        className={`absolute top-4 left-6 sm:left-10 font-mono text-[9.5px] sm:text-[10px] tracking-widest pointer-events-none transition-opacity ${
+          isWhite ? "text-black/30" : "text-[#444]"
         }`}
       >
-        <div className="flex items-center gap-2.5 overflow-hidden whitespace-nowrap">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#ff5500] animate-pulse shrink-0" />
-          <span className={isWhite ? "text-black/85" : "text-white/80"}>
-            THEJERSEYHUB / IMMERSIVE FOOTBALL ARCHIVE / 2026
-          </span>
-          <span className={isWhite ? "text-black/25 hidden sm:inline" : "text-white/20 hidden sm:inline"}>
-            •
-          </span>
-          <span className={isWhite ? "text-black/50 hidden sm:inline" : "text-white/50 hidden sm:inline"}>
-            EXPERIENCE THE FUTURE BEFORE IT ARRIVES
-          </span>
-        </div>
-        <div className={`hidden md:flex items-center gap-4 ${isWhite ? "text-black/40" : "text-white/40"}`}>
-          <span>MATCH SPEC</span>
-          <span>•</span>
-          <span>SHADERS</span>
-          <span>•</span>
-          <span>VAULT LIVE</span>
-        </div>
+        [X: 01.992]
+      </div>
+      <div
+        className={`absolute top-4 right-6 sm:right-10 font-mono text-[9.5px] sm:text-[10px] tracking-widest pointer-events-none transition-opacity ${
+          isWhite ? "text-black/30" : "text-[#444]"
+        }`}
+      >
+        [Y: 88.104]
       </div>
 
       {/* ── Thick Editorial Navbar ─────────────────────────────────── */}
@@ -307,7 +302,7 @@ export default function HomePage() {
           <div className={`w-full h-[1px] mb-4 ${isWhite ? "bg-black/10" : "bg-white/10"}`} />
 
           <div className={`space-y-2.5 text-[10px] font-mono tracking-[0.14em] ${isWhite ? "text-black/75" : "text-white/80"}`}>
-            <p>SESSION : [19.08.2026]</p>
+            <p>SESSION : [21.08.2026]</p>
             <p>TIMESTAMP : [{timeString}]</p>
             <p className={`font-semibold pt-1 ${isWhite ? "text-black" : "text-white"}`}>
               EDITION : [{sel.code}]
@@ -377,11 +372,45 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* ── Mobile Floating Kit Card (lg:hidden) ───────────────────── */}
+      <div className="lg:hidden fixed bottom-14 inset-x-3.5 sm:inset-x-6 z-30 pointer-events-auto">
+        <div
+          className={`backdrop-blur-xl rounded-2xl p-3.5 sm:p-4 border shadow-xl flex items-center justify-between gap-3 transition-all ${
+            isWhite
+              ? "bg-[#faf7f0]/95 border-black/10 text-black shadow-[0_12px_35px_rgba(0,0,0,0.09)]"
+              : "bg-[#0d0d10]/95 border-white/12 text-white shadow-[0_15px_45px_rgba(0,0,0,0.8)]"
+          }`}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 font-mono text-[9px] text-[#ff5500] font-bold">
+              <span>{sel.code}</span>
+              <span className="opacity-40">•</span>
+              <span className="truncate">{sel.club}</span>
+            </div>
+            <p className="font-mono text-xs font-bold truncate mt-0.5" title={sel.name}>
+              {sel.name}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-mono text-xs font-bold text-[#ff5500]">
+              {sel.price}
+            </span>
+            <button
+              onClick={() => addToCart(sel, "L")}
+              className="px-3.5 py-2 bg-gradient-to-r from-[#ff5500] to-[#e64000] text-white font-mono text-[10px] font-bold uppercase rounded-xl shadow-[0_2px_10px_rgba(255,85,0,0.35)] cursor-pointer active:scale-95"
+            >
+              + Bag
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ── 3D Circular Carousel — DOM-driven, no React state ──────── */}
       <div className="absolute inset-0 z-20 pointer-events-none">
-        {JERSEYS.map((jersey, idx) => (
+        {jerseys.map((jersey, idx) => (
           <div
-            key={jersey.id}
+            key={jersey.id || jersey.code}
             ref={(el) => {
               jerseyEls.current[idx] = el;
             }}
@@ -391,7 +420,7 @@ export default function HomePage() {
               contain: "style",
             }}
             onClick={() => {
-              const cp = carouselProps(idx, curRot.current);
+              const cp = carouselProps(idx, curRot.current, N);
               if (cp.depth > 0.85) {
                 targetRot.current = Math.round(targetRot.current) + 1;
               } else {
@@ -417,7 +446,7 @@ export default function HomePage() {
               src={jersey.imageSrc}
               alt={jersey.name}
               fill
-              priority
+              priority={idx < 4}
               sizes="(max-width:640px) 220px,(max-width:768px) 300px,(max-width:1024px) 420px,540px"
               className="object-contain"
               draggable={false}
@@ -439,9 +468,9 @@ export default function HomePage() {
           </span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
-          {JERSEYS.map((j, i) => (
+          {jerseys.map((j, i) => (
             <button
-              key={j.id}
+              key={j.id || j.code}
               onClick={() => bringToFront(i)}
               className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                 i === currentIndex
@@ -449,37 +478,16 @@ export default function HomePage() {
                     ? "w-5 sm:w-8 bg-black"
                     : "w-5 sm:w-8 bg-white"
                   : isWhite
-                  ? "w-1.5 sm:w-2 bg-black/20 hover:bg-black/50"
-                  : "w-1.5 sm:w-2 bg-white/20 hover:bg-white/50"
+                  ? "w-1.5 bg-black/30 hover:bg-black/60"
+                  : "w-1.5 bg-white/30 hover:bg-white/60"
               }`}
-              aria-label={`Select ${j.name}`}
+              aria-label={`Select jersey ${j.name}`}
             />
           ))}
         </div>
-        <div className="flex items-center gap-4 pointer-events-auto">
-          {(!showSpecsHUD || !showIntelHUD) && (
-            <button
-              onClick={() => {
-                setShowSpecsHUD(true);
-                setShowIntelHUD(true);
-              }}
-              className="hover:opacity-80 transition-opacity cursor-pointer text-[#ff5500] font-semibold"
-            >
-              [RESTORE HUDS]
-            </button>
-          )}
-          <button
-            onClick={() => setContactModalOpen(true)}
-            className={`transition-opacity hover:opacity-70 cursor-pointer font-mono ${
-              isWhite ? "text-black" : "text-white"
-            }`}
-          >
-            CONTACT
-          </button>
-        </div>
       </footer>
 
-      {/* ── Authentication Modal (Theme-responsive with gradient look) ── */}
+      {/* ── Modals ─────────────────────────────────────────────────── */}
       <AuthModal
         isOpen={authModalOpen}
         initialMode={authMode}
@@ -487,7 +495,6 @@ export default function HomePage() {
         onClose={() => setAuthModalOpen(false)}
       />
 
-      {/* ── Contact Desk Modal (Sends to nantio.official@gmail.com) ─── */}
       <ContactModal
         isOpen={contactModalOpen}
         theme={theme}

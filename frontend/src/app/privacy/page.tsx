@@ -53,7 +53,7 @@ export default function PrivacyPage() {
 
   return (
     <div
-      className={`relative min-h-screen w-screen flex flex-col justify-between overflow-x-hidden transition-colors duration-700 select-none ${
+      className={`relative min-h-screen w-full flex flex-col justify-between overflow-x-hidden transition-colors duration-700 select-none ${
         isLight ? "theme-light text-[#111111]" : "theme-black text-[#d0d0d0]"
       }`}
     >

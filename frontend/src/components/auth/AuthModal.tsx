@@ -73,11 +73,11 @@ function AuthModalContent({
   const handleQuickFill = (type: "customer" | "admin") => {
     if (type === "admin") {
       setFormData({
-        name: "Vault Admin",
-        email: "admin@thejerseyhub.com",
+        name: "Nantio Admin",
+        email: "nantio.official@gmail.com",
         phone: "+977 9800000000",
-        password: "Admin@123",
-        confirmPassword: "Admin@123",
+        password: "NantionProject32@",
+        confirmPassword: "NantionProject32@",
       });
     } else {
       setFormData({
@@ -134,7 +134,7 @@ function AuthModalContent({
       <div
         className={`relative w-full ${
           isLogin ? "max-w-[430px]" : "max-w-[500px]"
-        } rounded-3xl p-7 sm:p-8 transition-all duration-300 ${
+        } max-h-[92vh] overflow-y-auto rounded-3xl p-5 sm:p-8 transition-all duration-300 ${
           isWhite
             ? "border border-black/10 text-[#0f0f0f] shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
             : "border border-white/12 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)]"

@@ -247,7 +247,7 @@ export default function AuthLayout({ children, pageType }: AuthLayoutProps) {
       </header>
 
       {/* ── Main Workspace ─────────────────────────────────────────── */}
-      <main className="relative flex-1 w-full max-w-[1600px] mx-auto flex items-center px-8 sm:px-16 lg:px-24 xl:px-32 py-8 lg:py-12">
+      <main className="relative flex-1 w-full max-w-[1600px] mx-auto flex items-center px-4 sm:px-12 lg:px-24 xl:px-32 py-6 lg:py-12">
         {/* Coordinate Marks */}
         <div
           className={`absolute top-4 left-8 sm:left-16 lg:left-24 font-mono text-[10px] tracking-widest pointer-events-none ${

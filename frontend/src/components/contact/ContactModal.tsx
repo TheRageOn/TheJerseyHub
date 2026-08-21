@@ -90,7 +90,7 @@ export default function ContactModal({
         Editorial Gradient Contact Modal Panel
       */}
       <div
-        className={`relative w-full max-w-[480px] rounded-3xl p-7 sm:p-8 transition-all duration-300 ${
+        className={`relative w-full max-w-[480px] max-h-[92vh] overflow-y-auto rounded-3xl p-5 sm:p-8 transition-all duration-300 ${
           isWhite
             ? "border border-black/10 text-[#0f0f0f] shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
             : "border border-white/12 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)]"

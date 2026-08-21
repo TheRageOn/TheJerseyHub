@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -20,12 +20,22 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
   const { isWhite, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Handle ESC key to close mobile menu
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
+
   return (
     <header
       className={
         isFixed
-          ? "fixed top-10 sm:top-11 lg:top-12 left-0 right-0 z-40 px-4 sm:px-8 pointer-events-none flex justify-center"
-          : "w-full pt-4 sm:pt-6 pb-2 px-4 sm:px-8 flex justify-center z-10"
+          ? "fixed top-9 sm:top-10 lg:top-12 left-0 right-0 z-40 px-3 sm:px-6 lg:px-8 pointer-events-none flex justify-center"
+          : "w-full pt-3 sm:pt-6 pb-2 px-3 sm:px-6 lg:px-8 flex justify-center z-10"
       }
     >
       {/* 
@@ -33,15 +43,15 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
         - Responsive to Chalk White and Obsidian Noir themes
       */}
       <div
-        className={`w-full max-w-5xl h-[68px] sm:h-[72px] backdrop-blur-xl rounded-2xl px-6 sm:px-8 flex items-center justify-between pointer-events-auto relative transition-all duration-300 ${
+        className={`w-full max-w-5xl h-[60px] sm:h-[68px] sm:h-[72px] backdrop-blur-xl rounded-2xl px-4 sm:px-8 flex items-center justify-between pointer-events-auto relative transition-all duration-300 ${
           isWhite
-            ? "bg-[#faf7f0]/90 border border-black/10 shadow-[0_16px_45px_rgba(0,0,0,0.08)] text-[#0c0c0c]"
-            : "bg-[#0c0c0c]/90 border border-white/12 shadow-[0_20px_50px_rgba(0,0,0,0.65)] text-white"
+            ? "bg-[#faf7f0]/95 border border-black/10 shadow-[0_16px_45px_rgba(0,0,0,0.08)] text-[#0c0c0c]"
+            : "bg-[#0c0c0c]/95 border border-white/12 shadow-[0_20px_50px_rgba(0,0,0,0.65)] text-white"
         }`}
       >
         {/* Top Accent Line */}
         <div
-          className={`absolute top-0 inset-x-8 h-[1px] ${
+          className={`absolute top-0 inset-x-6 sm:inset-x-8 h-[1px] ${
             isWhite
               ? "bg-gradient-to-r from-transparent via-black/10 to-transparent"
               : "bg-gradient-to-r from-transparent via-white/20 to-transparent"
@@ -49,16 +59,16 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
         />
 
         {/* ── Brand Logo & Title ────────────────────────────────────── */}
-        <Link href="/" className="flex items-center gap-3.5 group">
+        <Link href="/" className="flex items-center gap-2.5 sm:gap-3.5 group">
           <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
               isWhite
                 ? "bg-black/5 border border-black/10 text-black shadow-sm"
                 : "bg-white/10 border border-white/15 text-white shadow-[0_0_15px_rgba(255,255,255,0.08)]"
             }`}
           >
             <svg
-              className="w-4 h-4"
+              className="w-3.5 h-3.5 sm:w-4 sm:h-4"
               viewBox="0 0 24 24"
               fill="currentColor"
             >
@@ -68,14 +78,14 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
 
           <div className="flex flex-col gap-0.5">
             <span
-              className={`font-mono text-xs sm:text-sm font-bold tracking-[0.18em] sm:tracking-[0.22em] ${
+              className={`font-mono text-[11px] sm:text-sm font-bold tracking-[0.16em] sm:tracking-[0.22em] ${
                 isWhite ? "text-[#0a0a0a]" : "text-white"
               }`}
             >
               [THEJERSEYHUB]
             </span>
             <span
-              className={`font-mono text-[8.5px] sm:text-[9px] tracking-[0.16em] uppercase hidden sm:block ${
+              className={`font-mono text-[8px] sm:text-[9px] tracking-[0.16em] uppercase hidden sm:block ${
                 isWhite ? "text-black/45" : "text-white/40"
               }`}
             >
@@ -150,11 +160,11 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
         </nav>
 
         {/* ── Right Action Controls ─────────────────────────────────── */}
-        <div className="flex items-center gap-3 sm:gap-4 font-mono text-[10.5px] sm:text-[11px] tracking-[0.14em] uppercase">
+        <div className="flex items-center gap-2 sm:gap-3.5 font-mono text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.14em] uppercase">
           {/* Cart Trigger Badge */}
           <button
             onClick={openCart}
-            className={`px-3 py-2 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border transition-all cursor-pointer flex items-center gap-1 min-h-[38px] ${
               totalItems > 0
                 ? "bg-[#ff5500]/10 border-[#ff5500]/40 text-[#ff5500] font-bold"
                 : isWhite
@@ -164,15 +174,15 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
             aria-label="View shopping bag"
           >
             <span>BAG</span>
-            <span>[{totalItems}]</span>
+            <span className="text-[#ff5500] font-bold">[{totalItems}]</span>
           </button>
 
           {/* Auth Controls */}
           {isAuthenticated && user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Link
                 href="/dashboard"
-                className={`px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5 font-bold ${
+                className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg transition-colors flex items-center gap-1 font-bold min-h-[38px] ${
                   isWhite
                     ? "bg-black/5 hover:bg-black/10 text-black"
                     : "bg-white/10 hover:bg-white/15 text-white"
@@ -183,19 +193,19 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
 
               <button
                 onClick={logout}
-                className="opacity-50 hover:opacity-100 transition-opacity px-2 py-1 cursor-pointer text-[10px]"
+                className="opacity-50 hover:opacity-100 transition-opacity p-2 cursor-pointer text-[9.5px] min-h-[38px] min-w-[38px] flex items-center justify-center"
                 title="Log out"
               >
                 [EXIT]
               </button>
             </div>
           ) : (
-            <>
+            <div className="hidden sm:flex items-center gap-2">
               {onOpenAuth && (
                 <>
                   <button
                     onClick={() => onOpenAuth("login")}
-                    className={`px-3 sm:px-4 py-2 transition-colors cursor-pointer font-semibold ${
+                    className={`px-3 py-2 transition-colors cursor-pointer font-semibold min-h-[38px] ${
                       isWhite
                         ? "text-black/80 hover:text-black"
                         : "text-white/80 hover:text-white"
@@ -206,22 +216,22 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
 
                   <button
                     onClick={() => onOpenAuth("signup")}
-                    className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-[#ff5500] to-[#e64000] hover:from-[#ff6614] hover:to-[#f04800] text-white font-bold rounded-lg transition-all duration-200 cursor-pointer shadow-[0_0_15px_rgba(255,85,0,0.35)]"
+                    className="px-3.5 sm:px-4 py-2 bg-gradient-to-r from-[#ff5500] to-[#e64000] hover:from-[#ff6614] hover:to-[#f04800] text-white font-bold rounded-lg transition-all duration-200 cursor-pointer shadow-[0_0_15px_rgba(255,85,0,0.35)] min-h-[38px]"
                   >
                     SIGN UP
                   </button>
                 </>
               )}
-            </>
+            </div>
           )}
 
           {/* Mobile Hamburger Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className={`md:hidden w-9 h-9 flex items-center justify-center rounded-lg cursor-pointer ml-1 ${
+            className={`md:hidden w-10 h-10 flex items-center justify-center rounded-xl cursor-pointer ${
               isWhite
-                ? "text-black/70 hover:text-black hover:bg-black/5"
-                : "text-white/70 hover:text-white hover:bg-white/10"
+                ? "text-black/80 hover:text-black bg-black/5"
+                : "text-white/80 hover:text-white bg-white/10"
             }`}
             aria-label="Toggle mobile menu"
           >
@@ -255,10 +265,10 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
       {/* ── Mobile Menu Dropdown ──────────────────────────────────── */}
       {mobileMenuOpen && (
         <div
-          className={`md:hidden absolute top-24 left-4 right-4 backdrop-blur-2xl rounded-2xl p-6 sm:p-7 shadow-2xl flex flex-col gap-4 font-mono text-xs tracking-widest uppercase pointer-events-auto animate-in fade-in zoom-in-95 duration-150 ${
+          className={`md:hidden fixed top-20 left-3 right-3 sm:left-6 sm:right-6 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl flex flex-col gap-4 font-mono text-xs tracking-widest uppercase pointer-events-auto z-50 animate-in fade-in zoom-in-95 duration-150 border ${
             isWhite
-              ? "bg-[#faf7f0]/95 border border-black/10 text-black"
-              : "bg-[#0c0c0c]/95 border border-white/15 text-white"
+              ? "bg-[#faf7f0]/98 border-black/10 text-black shadow-[0_20px_50px_rgba(0,0,0,0.15)]"
+              : "bg-[#0c0c0c]/98 border-white/15 text-white shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
           }`}
         >
           <div
@@ -275,31 +285,46 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
             </span>
             <button
               onClick={toggleTheme}
-              className="text-[#ff5500] font-bold text-[10px]"
+              className="text-[#ff5500] font-bold text-[10px] py-1 px-2 rounded-lg bg-[#ff5500]/10 border border-[#ff5500]/25 cursor-pointer"
             >
               THEME: {isWhite ? "CHALK" : "NOIR"}
             </button>
           </div>
 
+          {pathname === "/" && onDiscoverNext && (
+            <button
+              onClick={() => {
+                onDiscoverNext();
+                setMobileMenuOpen(false);
+              }}
+              className="py-2 text-left hover:text-[#ff5500] transition-colors cursor-pointer flex items-center justify-between"
+            >
+              <span>→ DISCOVER KITS</span>
+              <span className="opacity-40">[3D]</span>
+            </button>
+          )}
+
           <Link
             href="/shop"
             onClick={() => setMobileMenuOpen(false)}
-            className="py-1 text-left hover:text-[#ff5500] transition-colors"
+            className="py-2 text-left hover:text-[#ff5500] transition-colors flex items-center justify-between"
           >
-            → SHOP MARKETPLACE
+            <span>→ SHOP MARKETPLACE</span>
+            <span className="text-[#ff5500] font-bold">[12 KITS]</span>
           </Link>
 
           {isAuthenticated ? (
             <Link
               href="/dashboard"
               onClick={() => setMobileMenuOpen(false)}
-              className="py-1 text-left text-[#ff5500] font-bold transition-colors"
+              className="py-2 text-left text-[#ff5500] font-bold transition-colors flex items-center justify-between"
             >
-              → COLLECTOR VAULT
+              <span>→ COLLECTOR VAULT</span>
+              <span>[ACTIVE]</span>
             </Link>
           ) : (
             <div
-              className={`pt-3 border-t flex flex-col gap-3 ${
+              className={`pt-3 border-t flex flex-col gap-2.5 ${
                 isWhite ? "border-black/10" : "border-white/10"
               }`}
             >
@@ -308,7 +333,7 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
                   onOpenAuth?.("login");
                   setMobileMenuOpen(false);
                 }}
-                className={`w-full py-3 text-center rounded-lg transition-colors font-semibold border ${
+                className={`w-full py-3 text-center rounded-xl transition-colors font-semibold border cursor-pointer ${
                   isWhite
                     ? "text-black border-black/15 hover:bg-black/5"
                     : "text-white border-white/20 hover:bg-white/10"
@@ -321,9 +346,9 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
                   onOpenAuth?.("signup");
                   setMobileMenuOpen(false);
                 }}
-                className="w-full py-3 text-center bg-gradient-to-r from-[#ff5500] to-[#e64000] text-white font-bold rounded-lg shadow-[0_0_15px_rgba(255,85,0,0.4)]"
+                className="w-full py-3 text-center bg-gradient-to-r from-[#ff5500] to-[#e64000] text-white font-bold rounded-xl shadow-[0_4px_15px_rgba(255,85,0,0.4)] cursor-pointer"
               >
-                SIGN UP
+                SIGN UP FOR ACCESS
               </button>
             </div>
           )}

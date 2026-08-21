@@ -1,37 +1,44 @@
+const mongoose = require("mongoose");
 const Product = require("../model/Product");
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Create a product from the validated admin request data
-exports.createProduct = async (data) => {
-  return Product.create(data);
+// Helper to construct query for ID or custom code
+const buildIdQuery = (productId) => {
+  if (mongoose.Types.ObjectId.isValid(productId) && String(new mongoose.Types.ObjectId(productId)) === String(productId)) {
+    return { _id: productId };
+  }
+  return {
+    $or: [
+      { code: productId },
+      { code: new RegExp(`^${escapeRegex(productId)}$`, "i") },
+      { id: productId },
+    ],
+  };
 };
 
-// Get products with optional catalog filters
-exports.getAllProducts = async (filters) => {
+// Get all products with optional filters
+exports.getAllProducts = async (filters = {}) => {
   const query = {};
 
-  if (filters.category) {
-    query.category = filters.category;
+  if (filters.category && filters.category !== "ALL") {
+    query.category = filters.category.toLowerCase();
   }
 
-  if (filters.teamName) {
-    query.teamName = {
-      $regex: escapeRegex(filters.teamName),
-      $options: "i",
-    };
+  if (filters.league && filters.league !== "ALL") {
+    query.league = filters.league;
   }
 
-  if (filters.minPrice || filters.maxPrice) {
-    query.price = {};
+  if (filters.showOnLanding !== undefined) {
+    query.showOnLanding = filters.showOnLanding === "true" || filters.showOnLanding === true;
+  }
 
-    if (filters.minPrice) {
-      query.price.$gte = Number(filters.minPrice);
-    }
+  if (filters.showInShop !== undefined) {
+    query.showInShop = filters.showInShop === "true" || filters.showInShop === true;
+  }
 
-    if (filters.maxPrice) {
-      query.price.$lte = Number(filters.maxPrice);
-    }
+  if (filters.featured !== undefined) {
+    query.featured = filters.featured === "true" || filters.featured === true;
   }
 
   if (filters.search) {
@@ -42,50 +49,82 @@ exports.getAllProducts = async (filters) => {
 
     query.$or = [
       { name: searchRegex },
-      { teamName: searchRegex },
-      { description: searchRegex },
+      { club: searchRegex },
+      { code: searchRegex },
+      { season: searchRegex },
+      { edition: searchRegex },
     ];
   }
 
-  return Product.find(query).sort({ createdAt: -1 });
+  return Product.find(query).sort({ landingOrder: 1, createdAt: -1 });
 };
 
-// Get one product by its ID
-exports.getProductById = async (productId) => {
-  const product = await Product.findById(productId);
+// Get landing page products ordered by landingOrder
+exports.getLandingProducts = async () => {
+  return Product.find({ showOnLanding: true }).sort({ landingOrder: 1, createdAt: 1 });
+};
 
+// Get one product by its ID or Code
+exports.getProductById = async (productId) => {
+  const query = buildIdQuery(productId);
+  const product = await Product.findOne(query);
   if (!product) {
     throw new Error("Product not found");
   }
-
   return product;
 };
 
-// Update all editable product fields
+// Create a product
+exports.createProduct = async (data) => {
+  if (data.price && typeof data.price === "string") {
+    const num = parseFloat(data.price.replace(/[^0-9.]/g, ""));
+    data.priceNumeric = isNaN(num) ? 0 : num;
+  }
+  return Product.create(data);
+};
+
+// Update a product
 exports.updateProduct = async (productId, data) => {
-  const product = await Product.findByIdAndUpdate(
-    productId,
-    { $set: data },
-    {
-      new: true,
-      runValidators: true,
-    },
+  if (data.price && typeof data.price === "string") {
+    const num = parseFloat(data.price.replace(/[^0-9.]/g, ""));
+    data.priceNumeric = isNaN(num) ? 0 : num;
+  }
+
+  const query = buildIdQuery(productId);
+  const updatedProduct = await Product.findOneAndUpdate(query, data, {
+    returnDocument: "after",
+    runValidators: true,
+  });
+
+  if (!updatedProduct) {
+    throw new Error("Product not found");
+  }
+
+  return updatedProduct;
+};
+
+// Quick toggle placement (showOnLanding, landingOrder, showInShop, featured)
+exports.updatePlacement = async (productId, placementData) => {
+  const query = buildIdQuery(productId);
+  const updated = await Product.findOneAndUpdate(
+    query,
+    { $set: placementData },
+    { returnDocument: "after" }
   );
 
-  if (!product) {
+  if (!updated) {
     throw new Error("Product not found");
   }
 
-  return product;
+  return updated;
 };
 
-// Delete a product from the catalog
+// Delete a product
 exports.deleteProduct = async (productId) => {
-  const product = await Product.findByIdAndDelete(productId);
-
-  if (!product) {
+  const query = buildIdQuery(productId);
+  const deletedProduct = await Product.findOneAndDelete(query);
+  if (!deletedProduct) {
     throw new Error("Product not found");
   }
-
-  return product;
+  return deletedProduct;
 };

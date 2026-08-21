@@ -7,7 +7,7 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Product created successfully",
+      message: "Jersey published successfully to database",
       data: {
         product,
       },
@@ -20,7 +20,7 @@ exports.createProduct = async (req, res) => {
   }
 };
 
-// Get all products for the public catalog
+// Get all products for the catalog
 exports.getAllProducts = async (req, res) => {
   try {
     const products = await productService.getAllProducts(req.query);
@@ -39,7 +39,26 @@ exports.getAllProducts = async (req, res) => {
   }
 };
 
-// Get one product for the public catalog
+// Get products specifically configured for the 3D landing page
+exports.getLandingProducts = async (req, res) => {
+  try {
+    const products = await productService.getLandingProducts();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        products,
+      },
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// Get one product by ID
 exports.getProductById = async (req, res) => {
   try {
     const product = await productService.getProductById(req.params.id);
@@ -60,14 +79,14 @@ exports.getProductById = async (req, res) => {
   }
 };
 
-// Update a product in the catalog
+// Update an existing product
 exports.updateProduct = async (req, res) => {
   try {
     const product = await productService.updateProduct(req.params.id, req.body);
 
     res.status(200).json({
       success: true,
-      message: "Product updated successfully",
+      message: "Jersey details updated successfully",
       data: {
         product,
       },
@@ -82,14 +101,39 @@ exports.updateProduct = async (req, res) => {
   }
 };
 
-// Delete a product from the catalog
-exports.deleteProduct = async (req, res) => {
+// Quick toggle placement (showOnLanding, landingOrder, showInShop, featured)
+exports.updatePlacement = async (req, res) => {
   try {
-    await productService.deleteProduct(req.params.id);
+    const product = await productService.updatePlacement(req.params.id, req.body);
 
     res.status(200).json({
       success: true,
-      message: "Product deleted successfully",
+      message: "Placement updated successfully",
+      data: {
+        product,
+      },
+    });
+  } catch (error) {
+    const statusCode = error.message === "Product not found" ? 404 : 400;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// Delete a product
+exports.deleteProduct = async (req, res) => {
+  try {
+    const product = await productService.deleteProduct(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Jersey removed from archive",
+      data: {
+        product,
+      },
     });
   } catch (error) {
     const statusCode = error.message === "Product not found" ? 404 : 400;
