@@ -5,6 +5,7 @@ const morgan = require("morgan");
 
 const authRoutes = require("./routes/auth.routes");
 const productRoutes = require("./routes/product.routes");
+const userRoutes = require("./routes/user.routes");
 const app = express();
 
 // Global Middlewares
@@ -20,6 +21,11 @@ app.use(morgan("dev"));
 
 // Authentication routes
 app.use("/api/auth", authRoutes);
+
+//Product routes
 app.use("/api/products", productRoutes);
+
+// User profile and admin user-management routes
+app.use("/api/users", userRoutes);
 
 module.exports = app;

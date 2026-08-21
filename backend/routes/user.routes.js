@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const userController = require("../controllers/user.controller");
-const { protect } = require("../middlewares/auth.middleware");
+const { protect, isAdmin } = require("../middlewares/auth.middleware");
+const { validateAuth } = require("../middlewares/validateAuth");
 
 // Customer profile routes
 router.get("/profile", protect, userController.getProfile);
@@ -10,8 +11,15 @@ router.put("/profile", protect, userController.updateProfile);
 router.put("/change-password", protect, userController.changePassword);
 
 // Admin user management routes
-router.get("/", protect, userController.getAllUsers);
-router.patch("/:id/block", protect, userController.toggleUserBlock);
-router.delete("/:id", protect, userController.deleteUser);
+router.post(
+  "/",
+  protect,
+  isAdmin,
+  validateAuth("register"),
+  userController.createUser,
+);
+router.get("/", protect, isAdmin, userController.getAllUsers);
+router.patch("/:id/block", protect, isAdmin, userController.toggleUserBlock);
+router.delete("/:id", protect, isAdmin, userController.deleteUser);
 
 module.exports = router;

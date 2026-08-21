@@ -49,6 +49,17 @@ const protect = async (req, res, next) => {
     }
 
     // Prevent blocked users from accessing protected routes
+    // Automatically clear a block after its expiry time
+    if (
+      user.isBlocked &&
+      user.blockedUntil &&
+      user.blockedUntil <= new Date()
+    ) {
+      user.isBlocked = false;
+      user.blockedUntil = null;
+      await user.save();
+    }
+
     if (user.isBlocked) {
       return res.status(403).json({
         success: false,

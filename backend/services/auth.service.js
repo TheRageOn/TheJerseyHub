@@ -61,6 +61,14 @@ exports.loginUser = async (data) => {
     throw new Error("Invalid credentials");
   }
 
+  // Prevent blocked users from logging in
+  if (
+    user.isBlocked &&
+    (!user.blockedUntil || user.blockedUntil > new Date())
+  ) {
+    throw new Error("Your account has been blocked");
+  }
+
   const isMatch = await bcrypt.compare(password, user.password);
 
   if (!isMatch) {
