@@ -87,16 +87,31 @@ exports.getAllUsers = async ({ page = 1, limit = 20, search, status }) => {
   };
 };
 
-// Update the current user's profile details
+// Update only the current user's name
 exports.updateProfile = async (userId, data) => {
   const user = await User.findByIdAndUpdate(
     userId,
-    { $set: { name: data.name, phone: data.phone } },
+    { $set: { name: data.name } },
     { new: true, runValidators: true },
   ).select("-password");
 
   if (!user) {
     throw new Error("User not found");
+  }
+
+  return user;
+};
+
+// Update customer details from the admin panel
+exports.updateUserByAdmin = async (userId, data) => {
+  const user = await User.findOneAndUpdate(
+    { _id: userId, role: "customer" },
+    { $set: { name: data.name, phone: data.phone } },
+    { new: true, runValidators: true, projection: "-password" },
+  );
+
+  if (!user) {
+    throw new Error("Customer not found");
   }
 
   return user;

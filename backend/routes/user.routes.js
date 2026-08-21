@@ -19,6 +19,7 @@ router.post(
   userController.createUser,
 );
 router.get("/", protect, isAdmin, userController.getAllUsers);
+router.put("/:id", protect, isAdmin, userController.updateUserByAdmin);
 router.patch("/:id/block", protect, isAdmin, userController.toggleUserBlock);
 router.delete("/:id", protect, isAdmin, userController.deleteUser);
 

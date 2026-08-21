@@ -2,9 +2,19 @@ const userService = require("../services/user.service");
 
 // Get the current user's profile
 exports.getProfile = async (req, res) => {
+  const userId = req.user._id || req.user.id;
+
   res.status(200).json({
     success: true,
-    data: { user: req.user },
+    data: {
+      user: {
+        id: userId,
+        role: req.user.role,
+        name: req.user.name,
+        phone: req.user.phone,
+        email: req.user.email,
+      },
+    },
   });
 };
 
@@ -15,6 +25,23 @@ exports.updateProfile = async (req, res) => {
     res.status(200).json({ success: true, data: { user } });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// Update a customer's editable details from the admin panel
+exports.updateUserByAdmin = async (req, res) => {
+  try {
+    const user = await userService.updateUserByAdmin(req.params.id, req.body);
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      data: { user },
+    });
+  } catch (error) {
+    res.status(error.message === "Customer not found" ? 404 : 400).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
