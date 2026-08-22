@@ -192,7 +192,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         subtotal,
         shipping: 0,
         total: subtotal,
-        paymentMethod: orderPayload.paymentMethod,
+        paymentMethod: "Cash on Delivery",
       });
 
       setStatus("success");
