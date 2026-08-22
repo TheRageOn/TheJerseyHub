@@ -27,12 +27,48 @@ exports.getAllOrders = async (filters = {}) => {
     .sort({ createdAt: -1 });
 };
 
-// Update order status (pending, processing, shipped, delivered, cancelled)
-exports.updateOrderStatus = async (orderId, status) => {
+// Update order and payment status from the admin order panel.
+exports.updateOrderStatus = async (orderId, statuses = {}) => {
+  const orderStatuses = [
+    "pending",
+    "processing",
+    "shipped",
+    "delivered",
+    "cancelled",
+  ];
+  const paymentStatuses = ["pending", "paid", "failed"];
+  const orderStatus = statuses.orderStatus || statuses.status;
+  const paymentStatus = statuses.paymentStatus;
+  const updates = {};
+
+  if (orderStatus !== undefined) {
+    if (
+      typeof orderStatus !== "string" ||
+      !orderStatuses.includes(orderStatus.toLowerCase())
+    ) {
+      throw new Error("Invalid order status");
+    }
+    updates.orderStatus = orderStatus.toLowerCase();
+  }
+
+  if (paymentStatus !== undefined) {
+    if (
+      typeof paymentStatus !== "string" ||
+      !paymentStatuses.includes(paymentStatus.toLowerCase())
+    ) {
+      throw new Error("Invalid payment status");
+    }
+    updates.paymentStatus = paymentStatus.toLowerCase();
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error("Order status or payment status is required");
+  }
+
   const order = await Order.findByIdAndUpdate(
     orderId,
-    { $set: { orderStatus: status.toLowerCase() } },
-    { returnDocument: "after" }
+    { $set: updates },
+    { returnDocument: "after" },
   ).populate("user", "name email phone");
 
   if (!order) {

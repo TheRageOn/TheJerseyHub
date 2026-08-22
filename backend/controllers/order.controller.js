@@ -50,8 +50,12 @@ exports.getAllOrders = async (req, res) => {
 
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-    const order = await orderService.updateOrderStatus(req.params.id, status);
+    const { status, orderStatus, paymentStatus } = req.body;
+    const order = await orderService.updateOrderStatus(req.params.id, {
+      status,
+      orderStatus,
+      paymentStatus,
+    });
     res.status(200).json({
       success: true,
       message: "Order status updated successfully",

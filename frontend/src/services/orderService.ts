@@ -21,12 +21,14 @@ export interface ShippingAddress {
 export interface DBOrder {
   _id: string;
   id?: string;
-  user: {
-    _id?: string;
-    name?: string;
-    email?: string;
-    phone?: string;
-  } | string;
+  user:
+    | {
+        _id?: string;
+        name?: string;
+        email?: string;
+        phone?: string;
+      }
+    | string;
   items: OrderItem[];
   shippingAddress: ShippingAddress;
   paymentMethod: string;
@@ -70,18 +72,27 @@ export const orderService = {
   // Update order status (Admin)
   async updateOrderStatus(
     orderId: string,
-    status: string
-  ): Promise<{ success: boolean; data?: { order: DBOrder }; message?: string }> {
+    status: string | { orderStatus?: string; paymentStatus?: string },
+  ): Promise<{
+    success: boolean;
+    data?: { order: DBOrder };
+    message?: string;
+  }> {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("tjh_token") : null;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("tjh_token")
+          : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
         method: "PUT",
         headers,
         credentials: "include",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(typeof status === "string" ? { status } : status),
       });
       const json = await res.json();
       return json;
@@ -93,10 +104,13 @@ export const orderService = {
 
   // Delete order (Admin)
   async deleteOrder(
-    orderId: string
+    orderId: string,
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("tjh_token") : null;
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("tjh_token")
+          : null;
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
