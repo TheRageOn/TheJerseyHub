@@ -80,17 +80,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: true };
     }
 
-    // Demo fallback if backend is offline
+    // Fallback if backend is offline or not yet deployed to cloud
     if (
       res.message?.includes("Network error") ||
-      res.message?.includes("Failed to fetch")
+      res.message?.includes("Failed to fetch") ||
+      res.message?.includes("not reachable")
     ) {
+      const isTargetAdmin =
+        email.toLowerCase().includes("admin") ||
+        email.toLowerCase() === "nantio.official@gmail.com";
       const mockUser: User = {
-        id: "demo-collector-01",
-        name: email.split("@")[0].toUpperCase() || "RAJAK",
-        email,
+        id: isTargetAdmin ? "admin" : "demo-collector-01",
+        name: isTargetAdmin ? "Nantio Admin" : (email ? email.split("@")[0].toUpperCase() : "COLLECTOR"),
+        email: email || "user@thejerseyhub.com",
         phone: "+977 9800000000",
-        role: email.includes("admin") ? "admin" : "customer",
+        role: isTargetAdmin ? "admin" : "customer",
       };
       const mockToken = "mock_jwt_token_" + Date.now();
       setToken(mockToken);

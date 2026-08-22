@@ -16,7 +16,7 @@ const orderItemSchema = new mongoose.Schema(
 
     image: {
       type: String,
-      required: true,
+      default: "",
     },
 
     size: {
@@ -34,6 +34,14 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+
+    customization: {
+      playerName: { type: String },
+      playerNumber: { type: String },
+      patches: [{ type: String }],
+      extraCost: { type: Number, default: 0 },
+      coaMintId: { type: String },
     },
   },
   { _id: false },

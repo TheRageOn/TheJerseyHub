@@ -6,16 +6,19 @@ import Link from "next/link";
 import Navbar from "@/components/landing/Navbar";
 import AuthModal from "@/components/auth/AuthModal";
 import ContactModal from "@/components/contact/ContactModal";
+import ImageLoupe from "@/components/ui/ImageLoupe";
+import HeatPressStudio from "@/components/customizer/HeatPressStudio";
 import { useCart } from "@/context/CartContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { productService, DBJersey, FALLBACK_CATALOG } from "@/services/productService";
+import { getSafeImageSrc } from "@/lib/imageUtils";
 
 const ITEMS_PER_PAGE = 6;
 
 export default function ShopPage() {
   const { isWhite, theme } = useTheme();
-  const { addToCart, openCart } = useCart();
+  const { addToCart, openCart, instantBuy, currency, setCurrency, formatPrice } = useCart();
   const { user, isAuthenticated, loading } = useAuth();
 
   // Dynamic Catalog State from MongoDB (with fallback)
@@ -35,8 +38,11 @@ export default function ShopPage() {
   // Selected kit sizes on card
   const [cardSizes, setCardSizes] = useState<Record<string, "S" | "M" | "L" | "XL" | "XXL">>({});
 
-  // Modals
+  // Modals & Customizer State
   const [inspectJersey, setInspectJersey] = useState<DBJersey | null>(null);
+  const [inspectSize, setInspectSize] = useState<"S" | "M" | "L" | "XL" | "XXL">("L");
+  const [inspectQuantity, setInspectQuantity] = useState<number>(1);
+  const [customizerJersey, setCustomizerJersey] = useState<DBJersey | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [contactModalOpen, setContactModalOpen] = useState(false);
@@ -69,30 +75,48 @@ export default function ShopPage() {
 
   const filteredKits = useMemo(() => {
     return catalog.filter((item) => {
-      // Search
-      if (
-        searchQuery &&
-        !item.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !item.club.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !item.season.toLowerCase().includes(searchQuery.toLowerCase())
-      ) {
-        return false;
+      // Smart normalizer for legacy records (e.g. Portugal national kits)
+      const isNational = /portugal|argentina|brazil|france|england|germany|italy|spain|netherlands|japan|croatia/i.test(
+        item.club + " " + item.name
+      );
+      const itemLeague = isNational && item.league === "La Liga" ? "International / National Teams" : item.league;
+      const itemCategory = isNational && item.category === "club" ? "nation" : item.category;
+
+      // Search across name, club, season, league, and code
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matches =
+          item.name.toLowerCase().includes(q) ||
+          item.club.toLowerCase().includes(q) ||
+          item.season.toLowerCase().includes(q) ||
+          itemLeague.toLowerCase().includes(q) ||
+          item.code.toLowerCase().includes(q);
+        if (!matches) return false;
       }
-      // Category
-      if (selectedCategory !== "ALL" && item.category !== selectedCategory.toLowerCase()) {
-        return false;
+
+      // Category / Edition Type
+      if (selectedCategory !== "ALL") {
+        const targetCat = selectedCategory.toLowerCase();
+        if (targetCat === "nation" || targetCat === "national") {
+          if (itemCategory !== "nation" && itemCategory !== "national" && !isNational) return false;
+        } else if (itemCategory !== targetCat) {
+          return false;
+        }
       }
-      // League
-      if (selectedLeague !== "ALL" && item.league !== selectedLeague) {
-        return false;
+
+      // League / Competition
+      if (selectedLeague !== "ALL") {
+        if (itemLeague !== selectedLeague) return false;
       }
-      // Size
+
+      // Size availability
       if (
         selectedSize !== "ALL" &&
         !item.sizesAvailable.includes(selectedSize as "S" | "M" | "L" | "XL" | "XXL")
       ) {
         return false;
       }
+
       return true;
     }).sort((a, b) => {
       const pA = parseFloat(a.price.replace(/[^0-9.]/g, ""));
@@ -325,6 +349,24 @@ export default function ShopPage() {
                 <span>Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}</span>
               </button>
 
+              {/* Live Multi-Currency Switcher */}
+              <div className="flex items-center gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/10 dark:border-white/10 font-mono text-[10px] font-bold">
+                {(["USD", "NPR", "EUR"] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCurrency(c)}
+                    className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                      currency === c
+                        ? "bg-[#ff5500] text-white shadow-sm font-bold"
+                        : "opacity-50 hover:opacity-100"
+                    }`}
+                  >
+                    {c === "USD" ? "$ USD" : c === "NPR" ? "Rs. NPR" : "€ EUR"}
+                  </button>
+                ))}
+              </div>
+
               <div
                 className={`px-3 sm:px-4 py-2 rounded-xl font-mono text-xs border flex items-center gap-2 ${
                   isWhite ? "bg-white/80 border-black/10 shadow-sm" : "bg-[#121216] border-white/10"
@@ -402,22 +444,29 @@ export default function ShopPage() {
                 {/* Category Filter */}
                 <div className="space-y-1.5 mb-4 sm:mb-5">
                   <label className="block text-[10px] font-mono font-medium uppercase tracking-wider opacity-60">
-                    Edition Type
+                    Edition Category
                   </label>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {["ALL", "CLUB", "RETRO", "VINTAGE"].map((cat) => (
+                    {[
+                      { id: "ALL", label: "All Editions" },
+                      { id: "CLUB", label: "Club Match" },
+                      { id: "NATION", label: "National Team" },
+                      { id: "RETRO", label: "Retro Archive" },
+                      { id: "VINTAGE", label: "Vintage Classic" },
+                      { id: "SPECIAL", label: "Special Edition" },
+                    ].map((cat) => (
                       <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`py-2 px-2 rounded-xl font-mono text-[10px] text-center transition-all cursor-pointer border min-h-[38px] flex items-center justify-center ${
-                          selectedCategory === cat
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`py-2 px-2 rounded-xl font-mono text-[10px] text-center transition-all cursor-pointer border min-h-[36px] flex items-center justify-center ${
+                          selectedCategory === cat.id
                             ? "bg-[#ff5500] text-white border-[#ff5500] font-bold shadow-sm"
                             : isWhite
                             ? "bg-black/5 hover:bg-black/10 border-transparent text-black/75"
                             : "bg-white/5 hover:bg-white/10 border-transparent text-white/75"
                         }`}
                       >
-                        {cat}
+                        {cat.label}
                       </button>
                     ))}
                   </div>
@@ -426,14 +475,24 @@ export default function ShopPage() {
                 {/* League Filter */}
                 <div className="space-y-1.5 mb-4 sm:mb-5">
                   <label className="block text-[10px] font-mono font-medium uppercase tracking-wider opacity-60">
-                    League / Era
+                    League / Competition
                   </label>
-                  <div className="space-y-1">
-                    {["ALL", "La Liga", "Premier League", "Serie A", "Vintage Archive"].map((lg) => (
+                  <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                    {[
+                      "ALL",
+                      "La Liga",
+                      "Premier League",
+                      "Serie A",
+                      "Bundesliga",
+                      "Ligue 1",
+                      "International / National Teams",
+                      "UEFA Champions League",
+                      "Vintage Archive",
+                    ].map((lg) => (
                       <button
                         key={lg}
                         onClick={() => setSelectedLeague(lg)}
-                        className={`w-full text-left py-2 px-3 rounded-xl font-mono text-[10.5px] transition-all cursor-pointer flex items-center justify-between min-h-[36px] ${
+                        className={`w-full text-left py-2 px-3 rounded-xl font-mono text-[10.5px] transition-all cursor-pointer flex items-center justify-between min-h-[34px] ${
                           selectedLeague === lg
                             ? isWhite
                               ? "bg-black text-white font-bold"
@@ -441,8 +500,8 @@ export default function ShopPage() {
                             : "opacity-65 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5"
                         }`}
                       >
-                        <span>{lg}</span>
-                        {selectedLeague === lg && <span>✓</span>}
+                        <span className="truncate">{lg}</span>
+                        {selectedLeague === lg && <span className="text-xs">✓</span>}
                       </button>
                     ))}
                   </div>
@@ -475,7 +534,7 @@ export default function ShopPage() {
                 {/* Close Drawer Button on Mobile */}
                 <button
                   onClick={() => setMobileFilterOpen(false)}
-                  className="lg:hidden w-full py-2.5 mt-4 rounded-xl bg-[#ff5500] text-white font-mono text-xs font-bold uppercase tracking-wider"
+                  className="lg:hidden w-full py-2.5 mt-4 rounded-xl bg-[#ff5500] text-white font-mono text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
                   Apply Filters ({filteredKits.length} Kits)
                 </button>
@@ -529,96 +588,137 @@ export default function ShopPage() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
                   {paginatedKits.map((kit) => {
                     const kitKey = kit._id || kit.id || kit.code;
                     const currentSelectedSize = cardSizes[kitKey] || "L";
 
+                    // Determine normalized display league & category
+                    const isNational = /portugal|argentina|brazil|france|england|germany|italy|spain|netherlands|japan|croatia/i.test(
+                      kit.club + " " + kit.name
+                    );
+                    const displayLeague =
+                      isNational && kit.league === "La Liga"
+                        ? "International / National Teams"
+                        : kit.league || "Archive Match";
+
                     return (
                       <div
                         key={kitKey}
-                        className={`group rounded-3xl p-5 sm:p-6 border transition-all duration-300 flex flex-col justify-between relative ${
+                        className={`group rounded-3xl p-5 border transition-all duration-300 flex flex-col justify-between relative ${
                           isWhite
-                            ? "bg-white/80 hover:bg-white border-black/10 hover:border-black/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)]"
-                            : "bg-[#121216]/90 hover:bg-[#16161c] border-white/10 hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
+                            ? "bg-white/90 hover:bg-white border-black/10 hover:border-black/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)]"
+                            : "bg-[#121216]/95 hover:bg-[#16161c] border-white/10 hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
                         }`}
                       >
-                        {/* Top Header Row on Card */}
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-mono text-[9px] px-2.5 py-1 rounded-md bg-[#ff5500]/10 text-[#ff5500] font-bold tracking-wider">
+                        {/* Top Header Bar on Card */}
+                        <div className="flex items-center justify-between mb-3 font-mono text-[10px]">
+                          <span className="px-2.5 py-1 rounded-lg bg-[#ff5500]/10 text-[#ff5500] font-bold tracking-wider">
                             {kit.code}
                           </span>
 
-                          <div className="flex items-center gap-1 font-mono text-[10px] opacity-70">
-                            <span>★ {kit.rating}</span>
-                          </div>
+                          <span className="opacity-60 uppercase text-[9px] font-semibold tracking-wider">
+                            {isNational ? "NATIONAL TEAM" : kit.club}
+                          </span>
                         </div>
 
-                        {/* Jersey Image Showcase */}
+                        {/* Framed Jersey Image Showcase with Hover Inspect */}
                         <div
                           onClick={() => setInspectJersey(kit)}
-                          className="relative w-full h-48 sm:h-56 my-2 flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform duration-300"
+                          className={`relative w-full h-52 sm:h-60 rounded-2xl border flex items-center justify-center p-3 cursor-pointer overflow-hidden transition-all duration-300 ${
+                            isWhite
+                              ? "bg-black/[0.02] border-black/5 group-hover:bg-black/[0.04]"
+                              : "bg-black/30 border-white/5 group-hover:bg-black/40"
+                          }`}
                         >
-                          <Image
-                            src={kit.imageSrc}
-                            alt={kit.name}
-                            fill
-                            className="object-contain drop-shadow-xl"
-                          />
+                          <div className="relative w-full h-full group-hover:scale-105 transition-transform duration-300">
+                            <Image
+                              src={getSafeImageSrc(kit.imageSrc)}
+                              alt={kit.name}
+                              fill
+                              className="object-contain drop-shadow-xl"
+                            />
+                          </div>
+
+                          {/* Subtle Quick Inspect hover pill */}
+                          <div className="absolute bottom-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                            <span className="font-mono text-[9px] bg-black/80 text-white px-2.5 py-1 rounded-full border border-white/15 backdrop-blur-xs shadow-md">
+                              [+] Quick Inspect
+                            </span>
+                          </div>
                         </div>
 
                         {/* Kit Meta Details */}
-                        <div className="pt-2">
-                          <span className="font-mono text-[9px] uppercase tracking-wider text-[#ff5500] font-semibold block mb-0.5">
-                            {kit.club}
-                          </span>
-                          <h3
-                            onClick={() => setInspectJersey(kit)}
-                            className="font-bold text-sm leading-snug cursor-pointer hover:text-[#ff5500] transition-colors truncate"
-                            title={kit.name}
-                          >
-                            {kit.name}
-                          </h3>
-                          <p className="font-mono text-[10px] opacity-50 mt-0.5 mb-3 truncate">
-                            {kit.season}
-                          </p>
-
-                          {/* Interactive Size Pill Selector */}
-                          <div className="flex items-center gap-1.5 mb-4 overflow-x-auto pb-1">
-                            <span className="font-mono text-[9px] opacity-50 mr-1 shrink-0">SIZE:</span>
-                            {(["S", "M", "L", "XL"] as const).map((sz) => (
-                              <button
-                                key={sz}
-                                onClick={() =>
-                                  setCardSizes((prev) => ({ ...prev, [kitKey]: sz }))
-                                }
-                                className={`w-8 h-8 rounded-lg font-mono text-[10.5px] flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
-                                  currentSelectedSize === sz
-                                  ? "bg-[#ff5500] text-white border-[#ff5500] font-bold"
-                                  : isWhite
-                                  ? "bg-black/5 hover:bg-black/10 border-black/10 text-black/70"
-                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70"
-                                }`}
-                              >
-                                {sz}
-                              </button>
-                            ))}
+                        <div className="pt-3.5 space-y-3">
+                          <div>
+                            <div className="flex items-center gap-1.5 font-mono text-[9.5px] opacity-60 uppercase mb-1">
+                              <span className="text-[#ff5500] font-semibold">{displayLeague}</span>
+                              <span>•</span>
+                              <span>{kit.season}</span>
+                            </div>
+                            <h3
+                              onClick={() => setInspectJersey(kit)}
+                              className="font-bold text-sm font-sans leading-snug cursor-pointer hover:text-[#ff5500] transition-colors line-clamp-2 min-h-[38px]"
+                              title={kit.name}
+                            >
+                              {kit.name}
+                            </h3>
                           </div>
 
-                          {/* Price & Action Button */}
-                          <div className="flex items-center justify-between pt-3 border-t border-black/5 dark:border-white/5">
+                          {/* Price & Size Pills Row */}
+                          <div className="flex items-center justify-between pt-0.5">
                             <div>
-                              <span className="font-mono text-[8.5px] opacity-50 block leading-none">
+                              <span className="font-mono text-[7.5px] opacity-40 uppercase block leading-none mb-0.5">
                                 VALUATION
                               </span>
-                              <span className="font-mono text-base font-bold text-[#ff5500]">
-                                {kit.price}
+                              <span className="font-mono text-[13px] sm:text-[13.5px] font-bold text-[#ff5500] whitespace-nowrap tracking-tight">
+                                {formatPrice(parseFloat(kit.price.replace(/[^0-9.]/g, "")) || 125)}
                               </span>
                             </div>
 
+                            <div className="flex items-center gap-1">
+                              {(["S", "M", "L", "XL"] as const).map((sz) => (
+                                <button
+                                  key={sz}
+                                  type="button"
+                                  onClick={() => setCardSizes((prev) => ({ ...prev, [kitKey]: sz }))}
+                                  className={`w-6 h-6 rounded-md font-mono text-[8.5px] flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
+                                    currentSelectedSize === sz
+                                      ? "bg-[#ff5500] text-white border-[#ff5500] font-bold shadow-xs"
+                                      : isWhite
+                                      ? "bg-black/5 hover:bg-black/10 border-black/10 text-black/70"
+                                      : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70"
+                                  }`}
+                                >
+                                  {sz}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Clean Full-Width 2-Column Action Bar */}
+                          <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-black/5 dark:border-white/5">
                             <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCustomizerJersey(kit);
+                              }}
+                              className={`h-10 rounded-xl border flex items-center justify-center gap-1.5 font-mono text-[10px] font-bold transition-all cursor-pointer ${
+                                isWhite
+                                  ? "bg-black/5 hover:bg-black/10 border-black/10 text-black"
+                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
+                              }`}
+                              title="Custom Name, Number & Sleeve Badges"
+                            >
+                              <span className="font-mono text-[9px] text-[#ff5500]">[+]</span>
+                              <span>PRESS ATELIER</span>
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={() => addToCart(kit, currentSelectedSize, 1)}
-                              className="px-4 py-2.5 bg-gradient-to-r from-[#ff5500] to-[#e64000] hover:from-[#ff6614] hover:to-[#f04800] text-white font-mono text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-[0_4px_14px_rgba(255,85,0,0.35)] cursor-pointer active:scale-95 min-h-[40px] flex items-center justify-center"
+                              className="h-10 bg-[#ff5500] hover:bg-[#ff661a] text-white font-mono text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer active:scale-95 flex items-center justify-center"
                             >
                               + ADD TO BAG
                             </button>
@@ -685,110 +785,188 @@ export default function ShopPage() {
       {/* ── Quick Inspect Modal ─────────────────────────────────────── */}
       {inspectJersey && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-6 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => setInspectJersey(null)}
         >
           <div
-            className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 sm:p-9 transition-all duration-300 ${
+            className={`relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-10 transition-all duration-200 border font-sans ${
               isWhite
-                ? "border border-black/10 text-[#0f0f0f] shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
-                : "border border-white/12 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)]"
+                ? "bg-[#faf8f5] border-black/10 text-[#0f0f0f] shadow-2xl"
+                : "bg-[#111114] border-white/10 text-white shadow-2xl"
             }`}
-            style={{
-              background: isWhite
-                ? "radial-gradient(ellipse at 50% 0%, #ffffff 0%, #fbf8f2 50%, #f0eadc 100%)"
-                : "radial-gradient(ellipse at 50% 0%, #1e1e24 0%, #101013 55%, #070709 100%)",
-            }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Top Close Button (Prominent & High Z-Index) */}
+            {/* Top Close Button */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setInspectJersey(null);
               }}
-              className={`absolute top-4 right-4 sm:top-6 sm:right-6 z-30 w-10 h-10 flex items-center justify-center rounded-2xl transition-all cursor-pointer font-mono text-sm border ${
+              className={`absolute top-6 right-6 z-30 w-9 h-9 flex items-center justify-center rounded-xl transition-all cursor-pointer font-mono text-xs border ${
                 isWhite
-                  ? "bg-black/5 hover:bg-black/15 text-black border-black/10 shadow-sm"
-                  : "bg-white/10 hover:bg-white/20 text-white border-white/15 shadow-sm"
+                  ? "bg-black/5 hover:bg-black/10 text-black border-black/10"
+                  : "bg-white/5 hover:bg-white/10 text-white border-white/10"
               }`}
               aria-label="Close modal"
             >
               ✕
             </button>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-center pt-2 sm:pt-0">
-              <div className="relative w-full h-56 sm:h-72 flex items-center justify-center">
-                <Image
-                  src={inspectJersey.imageSrc}
-                  alt={inspectJersey.name}
-                  fill
-                  className="object-contain drop-shadow-2xl"
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 items-center">
+              
+              {/* Left Column: High-Res Visual Frame with Circular Loupe Magnifier */}
+              <div className="lg:col-span-6 flex flex-col items-center">
+                <div
+                  className={`relative w-full h-80 sm:h-96 rounded-2xl border flex items-center justify-center p-4 overflow-hidden ${
+                    isWhite ? "bg-black/[0.02] border-black/10" : "bg-black/40 border-white/10"
+                  }`}
+                >
+                  <ImageLoupe
+                    src={inspectJersey.imageSrc}
+                    alt={inspectJersey.name}
+                    zoomLevel={2.5}
+                    loupeSize={160}
+                    className="w-full h-full"
+                  />
+                </div>
+                <div className="flex items-center justify-between w-full mt-2.5 px-1 font-mono text-[10px] opacity-50 uppercase">
+                  <span>[MATCH GRADE FABRIC]</span>
+                  <span>{inspectJersey.edition || "HERITAGE ARCHIVE"}</span>
+                </div>
               </div>
 
-              <div className="space-y-4">
+              {/* Right Column: Product Details & Purchase Controls */}
+              <div className="lg:col-span-6 space-y-4">
                 <div>
-                  <span className="text-[9.5px] sm:text-[10px] font-mono tracking-widest text-[#ff5500] font-bold uppercase">
-                    SPECIFICATION // {inspectJersey.code}
-                  </span>
-                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight mt-1">
+                  <div className="flex items-center gap-2 mb-1.5 font-mono text-[10px] tracking-wider uppercase">
+                    <span className="text-[#ff5500] font-bold">[SPEC // {inspectJersey.code}]</span>
+                    <span className="opacity-40">•</span>
+                    <span className="opacity-60">{inspectJersey.league || "Archive Match"}</span>
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-snug">
                     {inspectJersey.name}
                   </h2>
-                  <p className="text-xs opacity-60 font-mono mt-0.5">
-                    {inspectJersey.season}
+                  <p className="text-xs sm:text-sm opacity-60 mt-1">
+                    {inspectJersey.club} • {inspectJersey.season}
                   </p>
                 </div>
 
-                <div
-                  className={`p-4 rounded-2xl border font-mono text-[10.5px] sm:text-[11px] space-y-2 ${
-                    isWhite ? "bg-black/5 border-black/10" : "bg-white/5 border-white/10"
+                {/* Price & Availability */}
+                <div className="flex flex-wrap items-baseline gap-3 pt-1 pb-1 border-b border-black/5 dark:border-white/5">
+                  <span className="text-3xl font-bold font-mono text-[#ff5500]">
+                    {formatPrice(parseFloat(inspectJersey.price.replace(/[^0-9.]/g, "")) || 125)}
+                  </span>
+                  <span className="text-xs opacity-60 font-medium">
+                    In Stock • Free Express Dispatch
+                  </span>
+                </div>
+
+                {/* Atelier Customizer Callout Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomizerJersey(inspectJersey);
+                    setInspectJersey(null);
+                  }}
+                  className={`w-full py-3 px-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between text-xs font-semibold ${
+                    isWhite
+                      ? "border-black/15 hover:border-[#ff5500] bg-black/5 hover:bg-[#ff5500]/10 text-black"
+                      : "border-white/15 hover:border-[#ff5500] bg-white/5 hover:bg-[#ff5500]/10 text-white"
                   }`}
                 >
-                  <div className="flex justify-between">
-                    <span className="opacity-60">EDITION:</span>
-                    <span className="font-bold">{inspectJersey.edition}</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#ff5500]/20 text-[#ff5500]">
+                      [CUSTOM]
+                    </span>
+                    <span>Player Name, Number & Sleeve Badges</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-60">FABRICATION:</span>
-                    <span>100% RECYCLED POLYESTER PRO</span>
+                  <span className="text-[#ff5500] font-bold text-xs">OPEN ATELIER →</span>
+                </button>
+
+                {/* Size Selector */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="opacity-60 text-xs font-semibold uppercase tracking-wider">Select Size:</span>
+                    <span className="opacity-40 text-xs font-mono">Athletic Match Fit</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-60">STATUS:</span>
-                    <span className="text-emerald-500 font-bold">VERIFIED IN VAULT</span>
+                  <div className="grid grid-cols-5 gap-2 font-mono">
+                    {(["S", "M", "L", "XL", "XXL"] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => setInspectSize(sz)}
+                        className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                          inspectSize === sz
+                            ? "border-[#ff5500] bg-[#ff5500] text-white shadow-sm"
+                            : isWhite
+                            ? "border-black/10 hover:border-black/30 bg-black/5 text-black"
+                            : "border-white/10 hover:border-white/30 bg-white/5 text-white"
+                        }`}
+                      >
+                        {sz}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 gap-3">
-                  <span className="font-mono text-xl sm:text-2xl font-bold text-[#ff5500]">
-                    {inspectJersey.price}
-                  </span>
+                {/* Quantity Selector & Specs */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-xs">
+                    <span className="opacity-50 block text-[10px] uppercase font-semibold">Quantity</span>
+                    <div className="flex items-center gap-3 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setInspectQuantity(Math.max(1, inspectQuantity - 1))}
+                        className="hover:text-[#ff5500] px-1 font-bold text-sm"
+                      >
+                        -
+                      </button>
+                      <span className="font-mono font-bold">{inspectQuantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => setInspectQuantity(inspectQuantity + 1)}
+                        className="hover:text-[#ff5500] px-1 font-bold text-sm"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setInspectJersey(null)}
-                      className={`px-3.5 py-3 rounded-xl font-mono text-xs border transition-colors cursor-pointer ${
-                        isWhite
-                          ? "border-black/15 hover:bg-black/5 text-black"
-                          : "border-white/20 hover:bg-white/10 text-white"
-                      }`}
-                    >
-                      Close
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        addToCart(inspectJersey, cardSizes[inspectJersey._id || inspectJersey.id || inspectJersey.code] || "L", 1);
-                        setInspectJersey(null);
-                      }}
-                      className="px-5 sm:px-6 py-3 bg-gradient-to-r from-[#ff5500] to-[#e64000] text-white font-mono text-xs font-bold uppercase tracking-wider rounded-xl shadow-[0_6px_20px_rgba(255,85,0,0.35)] cursor-pointer"
-                    >
-                      Add to Bag
-                    </button>
+                  <div className="p-3 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-xs">
+                    <span className="opacity-50 block text-[10px] uppercase font-semibold">Provenance</span>
+                    <span className="font-bold text-[#ff5500] block mt-1">Vault Certified CoA</span>
                   </div>
                 </div>
+
+                {/* Action CTA Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToCart(inspectJersey, inspectSize, inspectQuantity);
+                      setInspectJersey(null);
+                    }}
+                    className={`py-3.5 px-4 rounded-xl font-medium text-xs uppercase tracking-wider border transition-all cursor-pointer text-center ${
+                      isWhite
+                        ? "border-black/15 hover:bg-black/5 text-black"
+                        : "border-white/20 hover:bg-white/10 text-white"
+                    }`}
+                  >
+                    Add to Bag
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      instantBuy(inspectJersey, inspectSize, inspectQuantity);
+                      setInspectJersey(null);
+                    }}
+                    className="py-3.5 px-4 bg-[#ff5500] hover:bg-[#ff661a] text-white font-medium text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-all text-center"
+                  >
+                    Buy Now →
+                  </button>
+                </div>
+
               </div>
             </div>
           </div>
@@ -866,6 +1044,13 @@ export default function ShopPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Heat-Press Kit Atelier ──────────────────────────────────── */}
+      <HeatPressStudio
+        isOpen={Boolean(customizerJersey)}
+        jersey={customizerJersey}
+        onClose={() => setCustomizerJersey(null)}
+      />
 
       {/* Modals */}
       <AuthModal

@@ -5,12 +5,21 @@ import { Jersey } from "@/data/jerseys";
 import { useAuth } from "./AuthContext";
 import { apiRequest } from "@/lib/api";
 
+export interface KitCustomization {
+  playerName?: string;
+  playerNumber?: string;
+  patches?: string[];
+  extraCost?: number;
+  coaMintId?: string;
+}
+
 export interface CartItem {
   id: string; // product id
   jersey: Jersey;
   size: "S" | "M" | "L" | "XL" | "XXL";
   quantity: number;
   priceNumeric: number;
+  customization?: KitCustomization;
 }
 
 interface StoredCart {
@@ -24,12 +33,29 @@ interface CartContextType {
   items: CartItem[];
   totalItems: number;
   subtotal: number;
+  currency: "USD" | "NPR" | "EUR";
+  setCurrency: (c: "USD" | "NPR" | "EUR") => void;
+  formatPrice: (usdAmount: number) => string;
   isCartOpen: boolean;
+  isCheckoutOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
-  addToCart: (jersey: Jersey, size?: "S" | "M" | "L" | "XL" | "XXL", quantity?: number) => void;
-  updateQuantity: (id: string, size: string, quantity: number) => void;
-  removeFromCart: (id: string, size: string) => void;
+  openCheckout: () => void;
+  closeCheckout: () => void;
+  addToCart: (
+    jersey: Jersey,
+    size?: "S" | "M" | "L" | "XL" | "XXL",
+    quantity?: number,
+    customization?: KitCustomization
+  ) => void;
+  instantBuy: (
+    jersey: Jersey,
+    size?: "S" | "M" | "L" | "XL" | "XXL",
+    quantity?: number,
+    customization?: KitCustomization
+  ) => void;
+  updateQuantity: (id: string, size: string, quantity: number, customKey?: string) => void;
+  removeFromCart: (id: string, size: string, customKey?: string) => void;
   clearCart: () => void;
 }
 
@@ -42,6 +68,13 @@ function parsePrice(priceStr: string): number {
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
+  const [currency, setCurrency] = useState<"USD" | "NPR" | "EUR">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tjh_currency");
+      if (saved === "USD" || saved === "NPR" || saved === "EUR") return saved;
+    }
+    return "NPR";
+  });
   const [items, setItems] = useState<CartItem[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -59,6 +92,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return [];
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  const handleSetCurrency = useCallback((c: "USD" | "NPR" | "EUR") => {
+    setCurrency(c);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tjh_currency", c);
+      } catch {}
+    }
+  }, []);
+
+  // Currency Formatter
+  const formatPrice = useCallback(
+    (usdAmount: number): string => {
+      if (currency === "NPR") {
+        const nprVal = Math.round(usdAmount * 135);
+        return `Rs. ${nprVal.toLocaleString()}`;
+      }
+      if (currency === "EUR") {
+        const eurVal = (usdAmount * 0.92).toFixed(2);
+        return `€${eurVal}`;
+      }
+      return `$${usdAmount.toFixed(2)}`;
+    },
+    [currency]
+  );
 
   // Save guest cart to localStorage with expiration timestamp
   const saveGuestCart = useCallback((cartItems: CartItem[]) => {
@@ -99,19 +158,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addToCart = (
     jersey: Jersey,
     size: "S" | "M" | "L" | "XL" | "XXL" = "L",
-    quantity: number = 1
+    quantity: number = 1,
+    customization?: KitCustomization
   ) => {
+    const extra = customization?.extraCost || 0;
+    const itemPrice = parsePrice(jersey.price) + extra;
+    const customKey = customization
+      ? `${customization.playerName || ""}-${customization.playerNumber || ""}-${(customization.patches || []).join(",")}`
+      : "";
+
     setItems((prev) => {
       const existingIdx = prev.findIndex(
-        (i) => i.id === jersey.id && i.size === size
+        (i) =>
+          i.id === jersey.id &&
+          i.size === size &&
+          ((!i.customization && !customization) ||
+            (i.customization &&
+              `${i.customization.playerName || ""}-${i.customization.playerNumber || ""}-${(i.customization.patches || []).join(",")}` ===
+                customKey))
       );
       let updated: CartItem[];
 
       if (existingIdx > -1) {
         updated = prev.map((item, idx) =>
-          idx === existingIdx
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
+          idx === existingIdx ? { ...item, quantity: item.quantity + quantity } : item
         );
       } else {
         const newItem: CartItem = {
@@ -119,7 +189,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           jersey,
           size,
           quantity,
-          priceNumeric: parsePrice(jersey.price),
+          priceNumeric: itemPrice,
+          customization: customization
+            ? {
+                ...customization,
+                coaMintId:
+                  customization.coaMintId ||
+                  `MINT-${Math.floor(1000 + Math.random() * 9000)}-${(jersey.club || "TJH")
+                    .substring(0, 3)
+                    .toUpperCase()}`,
+              }
+            : undefined,
         };
         updated = [...prev, newItem];
       }
@@ -131,25 +211,60 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setIsCartOpen(true);
   };
 
-  const updateQuantity = (id: string, size: string, quantity: number) => {
+  const instantBuy = (
+    jersey: Jersey,
+    size: "S" | "M" | "L" | "XL" | "XXL" = "L",
+    quantity: number = 1,
+    customization?: KitCustomization
+  ) => {
+    addToCart(jersey, size, quantity, customization);
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+  };
+
+  const updateQuantity = (id: string, size: string, quantity: number, customKey?: string) => {
     setItems((prev) => {
       if (quantity <= 0) {
-        const updated = prev.filter((i) => !(i.id === id && i.size === size));
+        const updated = prev.filter(
+          (i) =>
+            !(
+              i.id === id &&
+              i.size === size &&
+              (!customKey ||
+                `${i.customization?.playerName || ""}-${i.customization?.playerNumber || ""}-${(i.customization?.patches || []).join(",")}` ===
+                  customKey)
+            )
+        );
         saveGuestCart(updated);
         return updated;
       }
 
       const updated = prev.map((item) =>
-        item.id === id && item.size === size ? { ...item, quantity } : item
+        item.id === id &&
+        item.size === size &&
+        (!customKey ||
+          `${item.customization?.playerName || ""}-${item.customization?.playerNumber || ""}-${(item.customization?.patches || []).join(",")}` ===
+            customKey)
+          ? { ...item, quantity }
+          : item
       );
       saveGuestCart(updated);
       return updated;
     });
   };
 
-  const removeFromCart = (id: string, size: string) => {
+  const removeFromCart = (id: string, size: string, customKey?: string) => {
     setItems((prev) => {
-      const updated = prev.filter((i) => !(i.id === id && i.size === size));
+      const updated = prev.filter(
+        (i) =>
+          !(
+            i.id === id &&
+            i.size === size &&
+            (!customKey ||
+              `${i.customization?.playerName || ""}-${i.customization?.playerNumber || ""}-${(i.customization?.patches || []).join(",")}` ===
+                customKey)
+          )
+      );
       saveGuestCart(updated);
       return updated;
     });
@@ -172,10 +287,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         items,
         totalItems,
         subtotal,
+        currency,
+        setCurrency: handleSetCurrency,
+        formatPrice,
         isCartOpen,
+        isCheckoutOpen,
         openCart: () => setIsCartOpen(true),
         closeCart: () => setIsCartOpen(false),
+        openCheckout: () => {
+          setIsCartOpen(false);
+          setIsCheckoutOpen(true);
+        },
+        closeCheckout: () => setIsCheckoutOpen(false),
         addToCart,
+        instantBuy,
         updateQuantity,
         removeFromCart,
         clearCart,

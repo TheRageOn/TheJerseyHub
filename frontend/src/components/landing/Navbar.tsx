@@ -192,7 +192,7 @@ export default function Navbar({
                     : "bg-white/10 hover:bg-white/15 text-white"
                 }`}
               >
-                <span>{user.name?.split(" ")[0] || user.email}</span>
+                <span>{user?.name ? user.name.split(" ")[0] : (user?.email ? user.email.split("@")[0] : "ACCOUNT")}</span>
               </Link>
 
               <button

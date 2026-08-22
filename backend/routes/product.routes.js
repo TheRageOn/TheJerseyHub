@@ -10,6 +10,7 @@ router.get("/landing", productController.getLandingProducts);
 router.get("/:id", productController.getProductById);
 
 // Admin product management routes (Placement & Catalog Control)
+router.post("/remove-bg", protect, isAdmin, productController.removeBackground);
 router.post("/", protect, isAdmin, productController.createProduct);
 router.put("/:id", protect, isAdmin, productController.updateProduct);
 router.patch("/:id/placement", protect, isAdmin, productController.updatePlacement);

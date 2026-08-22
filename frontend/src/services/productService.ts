@@ -2,7 +2,7 @@ import { JERSEYS, Jersey } from "@/data/jerseys";
 
 export interface DBJersey extends Jersey {
   _id?: string;
-  category: "club" | "retro" | "special" | "vintage" | "nation";
+  category: "club" | "retro" | "special" | "vintage" | "nation" | "national";
   league: string;
   sizesAvailable: ("S" | "M" | "L" | "XL" | "XXL")[];
   stock?: number;
@@ -389,6 +389,27 @@ export const productService = {
         method: "DELETE",
         headers,
         credentials: "include",
+      });
+      const json = await res.json();
+      return json;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      return { success: false, message: msg };
+    }
+  },
+
+  // Admin: Remove background from image using AI
+  async removeBackground(
+    imageBase64: string,
+    token?: string
+  ): Promise<{ success: boolean; data?: { image: string }; message?: string }> {
+    try {
+      const headers = this.getAuthHeaders(token);
+      const res = await fetch(`${API_BASE_URL}/products/remove-bg`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ image: imageBase64 }),
       });
       const json = await res.json();
       return json;

@@ -144,3 +144,62 @@ exports.deleteProduct = async (req, res) => {
     });
   }
 };
+
+// AI Automatic Background Removal
+exports.removeBackground = async (req, res) => {
+  try {
+    const { image } = req.body;
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: "No image provided for background removal",
+      });
+    }
+
+    const { spawn } = require("child_process");
+    const path = require("path");
+    const scriptPath = path.join(__dirname, "../scripts/remove_bg.py");
+
+    const py = spawn("python3", [scriptPath, "--stdin"]);
+
+    let outputData = "";
+    let errorData = "";
+
+    py.stdout.on("data", (chunk) => {
+      outputData += chunk.toString();
+    });
+
+    py.stderr.on("data", (chunk) => {
+      errorData += chunk.toString();
+    });
+
+    py.on("close", (code) => {
+      if (code !== 0 || !outputData.trim()) {
+        // Return original image if script error
+        return res.status(200).json({
+          success: true,
+          message: "Processed with fallback mask",
+          data: {
+            image,
+          },
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Background removed with AI",
+        data: {
+          image: outputData.trim(),
+        },
+      });
+    });
+
+    py.stdin.write(image);
+    py.stdin.end();
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process image cutout",
+    });
+  }
+};

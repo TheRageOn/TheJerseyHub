@@ -18,7 +18,7 @@ exports.registerUser = async (data) => {
     name,
     email,
     password: hashedPassword,
-    phone,
+    phone: phone || "",
   });
 
   const token = generateToken(user._id, user.role);

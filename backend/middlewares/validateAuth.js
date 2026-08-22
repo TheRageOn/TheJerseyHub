@@ -5,12 +5,10 @@ const registerSchema = Joi.object({
     .trim()
     .min(2)
     .max(50)
-    .pattern(/^[A-Z]/)
     .required()
     .messages({
       "string.empty": "Name is required.",
       "string.min": "Name must be at least 2 characters long.",
-      "string.pattern.base": "Name must start with a capital letter.",
       "any.required": "Name is required.",
     }),
 
@@ -24,24 +22,19 @@ const registerSchema = Joi.object({
     .trim()
     .min(6)
     .max(128)
-    .pattern(/^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).+$/)
     .required()
     .messages({
       "string.empty": "Password is required.",
       "string.min": "Password must be at least 6 characters long.",
-      "string.pattern.base":
-        "Password must contain a capital letter, a number, and a special character.",
       "any.required": "Password is required.",
     }),
 
   phone: Joi.string()
     .trim()
-    .pattern(/^\d{10}$/)
-    .required()
+    .allow("", null)
+    .optional()
     .messages({
-      "string.empty": "Phone number is required.",
-      "string.pattern.base": "Phone number must be exactly 10 digits.",
-      "any.required": "Phone number is required.",
+      "string.empty": "Phone number is optional.",
     }),
 });
 
@@ -68,9 +61,10 @@ const validateAuth = (type) => {
     });
 
     if (error) {
+      const firstMsg = error.details?.[0]?.message || "Validation failed";
       return res.status(400).json({
         success: false,
-        message: "Validation failed",
+        message: firstMsg,
         errors: error.details.map((detail) => detail.message),
       });
     }

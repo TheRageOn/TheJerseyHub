@@ -70,26 +70,6 @@ function AuthModalContent({
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleQuickFill = (type: "customer" | "admin") => {
-    if (type === "admin") {
-      setFormData({
-        name: "Nantio Admin",
-        email: "nantio.official@gmail.com",
-        phone: "+977 9800000000",
-        password: "NantionProject32@",
-        confirmPassword: "NantionProject32@",
-      });
-    } else {
-      setFormData({
-        name: "Rajak",
-        email: "collector@thejerseyhub.com",
-        phone: "+977 9811223344",
-        password: "password123",
-        confirmPassword: "password123",
-      });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("loading");
@@ -128,27 +108,16 @@ function AuthModalContent({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
-      {/* 
-        Editorial Gradient Modal Panel
-      */}
       <div
         className={`relative w-full ${
           isLogin ? "max-w-[430px]" : "max-w-[500px]"
-        } max-h-[92vh] overflow-y-auto rounded-3xl p-5 sm:p-8 transition-all duration-300 ${
+        } max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-8 transition-all duration-200 border ${
           isWhite
-            ? "border border-black/10 text-[#0f0f0f] shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
-            : "border border-white/12 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)]"
+            ? "bg-[#faf8f5] border-black/10 text-[#0f0f0f] shadow-2xl"
+            : "bg-[#111114] border-white/10 text-white shadow-2xl"
         }`}
-        style={{
-          background: isWhite
-            ? "radial-gradient(ellipse at 50% 0%, #ffffff 0%, #fbf8f2 50%, #f0eadc 100%)"
-            : "radial-gradient(ellipse at 50% 0%, #1e1e24 0%, #101013 55%, #070709 100%)",
-        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Subtle Amber Highlight Glow */}
-        <div className="absolute top-0 inset-x-12 h-[1px] bg-gradient-to-r from-transparent via-[#ff5500]/60 to-transparent" />
-
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -163,13 +132,13 @@ function AuthModalContent({
         </button>
 
         {/* ── Header ─────────────────────────────────────────────────── */}
-        <div className="mb-5">
+        <div className="mb-6">
           <h2
             className={`text-2xl font-bold tracking-tight mb-1 ${
               isWhite ? "text-[#0a0a0a]" : "text-white"
             }`}
           >
-            {isLogin ? "Log in to your account" : "Create your account"}
+            {isLogin ? "Sign in to your account" : "Create an account"}
           </h2>
           <p
             className={`text-xs ${
@@ -177,32 +146,9 @@ function AuthModalContent({
             }`}
           >
             {isLogin
-              ? "Welcome back to TheJerseyHub archive."
-              : "Register to access exclusive drops & vault editions."}
+              ? "Access your saved orders, bag, and profile."
+              : "Register for faster checkout and order tracking."}
           </p>
-        </div>
-
-        {/* Quick Role Fill Presets for Instant Testing */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-[10px] font-mono opacity-50 uppercase">TEST ROLES:</span>
-          <button
-            type="button"
-            onClick={() => handleQuickFill("customer")}
-            className={`text-[9.5px] font-mono px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-              isWhite
-                ? "bg-black/5 hover:bg-black/10 border-black/10 text-black/80"
-                : "bg-white/5 hover:bg-white/10 border-white/10 text-white/80"
-            }`}
-          >
-            [COLLECTOR]
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickFill("admin")}
-            className="text-[9.5px] font-mono px-2 py-0.5 rounded-lg bg-[#ff5500]/10 border border-[#ff5500]/30 text-[#ff5500] font-bold hover:bg-[#ff5500]/20 transition-all cursor-pointer"
-          >
-            [ADMIN]
-          </button>
         </div>
 
         {/* Feedback Alert */}
@@ -559,7 +505,7 @@ function AuthModalContent({
           <button
             type="button"
             onClick={() => {
-              handleQuickFill("customer");
+              login("shopper@example.com", "password123");
               setStatus("success");
               setTimeout(onClose, 800);
             }}
@@ -578,7 +524,7 @@ function AuthModalContent({
           <button
             type="button"
             onClick={() => {
-              handleQuickFill("customer");
+              login("shopper@example.com", "password123");
               setStatus("success");
               setTimeout(onClose, 800);
             }}

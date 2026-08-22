@@ -6,10 +6,12 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test src/__tests__/*.test.mjs"
   },
   "dependencies": {
     "gsap": "^3.15.0",
+    "jspdf": "^4.2.1",
     "next": "^16.3.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

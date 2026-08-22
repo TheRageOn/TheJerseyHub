@@ -5,11 +5,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.1.3"],
 
   // SVGs are served from /public — skip image optimization pipeline for them
+  // Allow images from any remote source (e.g. Google images, Cloudinary, Imgur, S3, etc.)
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "res.cloudinary.com" },
-      { protocol: "https", hostname: "api.getlayers.ai" },
+      { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "**" },
     ],
     // Disable the built-in image optimizer for local SVGs (they're already vector)
     dangerouslyAllowSVG: true,

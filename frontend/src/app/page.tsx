@@ -8,6 +8,7 @@ import ContactModal from "@/components/contact/ContactModal";
 import { useTheme } from "@/context/ThemeContext";
 import { useCart } from "@/context/CartContext";
 import { productService, DBJersey, FALLBACK_CATALOG } from "@/services/productService";
+import { getSafeImageSrc } from "@/lib/imageUtils";
 
 /* ─── Constants ───────────────────────────────────────────────────── */
 const LERP_PARALLAX = 0.08;
@@ -443,7 +444,7 @@ export default function HomePage() {
               style={{ opacity: 0 }}
             />
             <Image
-              src={jersey.imageSrc}
+              src={getSafeImageSrc(jersey.imageSrc)}
               alt={jersey.name}
               fill
               priority={idx < 4}

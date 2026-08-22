@@ -15,6 +15,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { productService, DBJersey, FALLBACK_CATALOG } from "@/services/productService";
 import { orderService, DBOrder } from "@/services/orderService";
 import { userService, DBUser } from "@/services/userService";
+import { getSafeImageSrc } from "@/lib/imageUtils";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -27,9 +28,11 @@ export default function DashboardPage() {
   const isAdmin = userRole === "admin";
 
   // Navigation Tab
-  const [activeTab, setActiveTab] = useState<
-    "vault" | "orders" | "settings" | "admin_products" | "admin_inventory" | "admin_orders" | "admin_users" | "admin_settings"
-  >(isAdmin ? "admin_products" : "vault");
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const activeTab = selectedTab || (isAdmin ? "admin_products" : "vault");
+  const setActiveTab = (tab: "vault" | "orders" | "settings" | "admin_products" | "admin_inventory" | "admin_orders" | "admin_users" | "admin_settings") => {
+    setSelectedTab(tab);
+  };
 
   // Admin view toggle (optional preview)
   const [adminCollectorPreview, setAdminCollectorPreview] = useState(false);
@@ -53,6 +56,32 @@ export default function DashboardPage() {
   const [deleteModalKit, setDeleteModalKit] = useState<DBJersey | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [imageInputMode, setImageInputMode] = useState<"url" | "upload" | "preset">("preset");
+  const [isRemovingBg, setIsRemovingBg] = useState(false);
+
+  // User Directory Modals & Action States
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "blocked">("all");
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+
+  const [editingUser, setEditingUser] = useState<DBUser | null>(null);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+  const [editUserForm, setEditUserForm] = useState({
+    name: "",
+    phone: "",
+  });
+
+  const [blockingUser, setBlockingUser] = useState<DBUser | null>(null);
+  const [blockDurationDays, setBlockDurationDays] = useState<number>(7);
+  const [isBlocking, setIsBlocking] = useState(false);
+
+  const [deleteModalUser, setDeleteModalUser] = useState<DBUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Kit Form State (for both Add and Edit)
   const [kitForm, setKitForm] = useState({
@@ -60,9 +89,9 @@ export default function DashboardPage() {
     name: "",
     club: "",
     season: "24/25 MATCH SPEC",
-    price: "$135.00",
+    price: "Rs. 2,500",
     stock: 25,
-    category: "club" as "club" | "retro" | "special" | "vintage" | "nation",
+    category: "club" as "club" | "retro" | "special" | "vintage" | "nation" | "national",
     league: "La Liga",
     imageSrc: "/images/barca-jersey.svg",
     edition: "HERITAGE VAULT EDITION",
@@ -104,9 +133,9 @@ export default function DashboardPage() {
 
   // Store & System Settings (Admin)
   const [storeSettings, setStoreSettings] = useState({
-    currency: "USD ($)",
-    shippingRate: "FREE (Standard) / $15 (Express)",
-    announcement: "⚡ 2026 RETRO ARCHIVE DROP LIVE NOW // FREE COD ON ALL KITS",
+    currency: "NPR (Rs.)",
+    shippingRate: "FREE (Inside Valley) / Rs. 150 (Outside)",
+    announcement: "[LIVE] 2026 RETRO ARCHIVE DROP LIVE NOW // FREE COD ON ALL KITS",
     nextDropDate: "2026-08-26",
     maintenanceMode: false,
   });
@@ -322,19 +351,48 @@ export default function DashboardPage() {
     }
   };
 
-  // File Upload Handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File Upload Handler (processes image and strips background cleanly)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const result = uploadEvent.target?.result as string;
-        if (result) {
-          setKitForm((prev) => ({ ...prev, imageSrc: result }));
-          toast.info("Image loaded to 3D test stage");
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (uploadEvent) => {
+      const result = uploadEvent.target?.result as string;
+      if (!result) return;
+
+      setIsRemovingBg(true);
+      const bgRes = await productService.removeBackground(result);
+      setIsRemovingBg(false);
+
+      if (bgRes.success && bgRes.data?.image) {
+        setKitForm((prev) => ({ ...prev, imageSrc: bgRes.data!.image }));
+        toast.success("Jersey image loaded to 3D stage");
+      } else {
+        setKitForm((prev) => ({ ...prev, imageSrc: result }));
+        toast.info("Jersey image loaded to 3D stage");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Web URL Cutout Handler (fetches and isolates jersey from URL)
+  const handleWebUrlCutout = async (urlToProcess?: string) => {
+    const targetUrl = (urlToProcess || kitForm.imageSrc || "").trim();
+    if (!targetUrl || (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://"))) {
+      return;
+    }
+
+    setIsRemovingBg(true);
+    const bgRes = await productService.removeBackground(targetUrl);
+    setIsRemovingBg(false);
+
+    if (bgRes.success && bgRes.data?.image) {
+      setKitForm((prev) => ({ ...prev, imageSrc: bgRes.data!.image }));
+      toast.success("Jersey isolated from Web URL successfully!");
+    } else {
+      setKitForm((prev) => ({ ...prev, imageSrc: targetUrl }));
+      toast.info("Image loaded from URL");
     }
   };
 
@@ -856,7 +914,7 @@ export default function DashboardPage() {
                                   <div className="flex items-center gap-2.5">
                                     <div className="relative w-10 h-10 rounded-lg bg-black/5 dark:bg-white/5 flex items-center justify-center p-1">
                                       <Image
-                                        src={kit.imageSrc}
+                                        src={getSafeImageSrc(kit.imageSrc)}
                                         alt={kit.name}
                                         fill
                                         className="object-contain"
@@ -1104,7 +1162,25 @@ export default function DashboardPage() {
                       <p className="text-[10px] opacity-60 mt-0.5">{usersList.length} REGISTERED DATABASE ACCOUNTS</p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Status Filter Pills */}
+                      <div className="flex rounded-xl border p-0.5 border-black/10 dark:border-white/10 text-[10px]">
+                        {(["all", "active", "blocked"] as const).map((st) => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setUserStatusFilter(st)}
+                            className={`px-2.5 py-1 rounded-lg uppercase font-bold transition-all cursor-pointer ${
+                              userStatusFilter === st
+                                ? "bg-[#ff5500] text-white"
+                                : "opacity-60 hover:opacity-100"
+                            }`}
+                          >
+                            {st}
+                          </button>
+                        ))}
+                      </div>
+
                       <input
                         type="text"
                         value={userSearch}
@@ -1114,11 +1190,23 @@ export default function DashboardPage() {
                           isWhite ? "bg-[#faf7f0] border-black/15" : "bg-[#18181e] border-white/15 text-white"
                         }`}
                       />
+                      
+                      <button
+                        onClick={() => {
+                          setNewUserForm({ name: "", email: "", password: "", phone: "" });
+                          setIsCreateUserOpen(true);
+                        }}
+                        className="px-3.5 py-2 bg-[#ff5500] text-white font-bold rounded-xl text-xs uppercase cursor-pointer shrink-0 shadow-sm"
+                      >
+                        + Create Collector
+                      </button>
+
                       <button
                         onClick={refreshUsers}
-                        className="px-3 py-1.5 rounded-xl border border-black/10 dark:border-white/10 text-[10px] font-bold cursor-pointer hover:bg-black/5"
+                        className="px-3 py-2 rounded-xl border border-black/10 dark:border-white/10 text-[10px] font-bold cursor-pointer hover:bg-black/5"
+                        title="Refresh Directory"
                       >
-                        ↻ Refresh
+                        ↻
                       </button>
                     </div>
                   </div>
@@ -1127,73 +1215,89 @@ export default function DashboardPage() {
                     <div className="py-12 text-center font-mono text-xs opacity-60">
                       Querying live registered user directory from MongoDB Atlas...
                     </div>
-                  ) : displayedUsers.length === 0 ? (
+                  ) : displayedUsers.filter((u) => userStatusFilter === "all" ? true : userStatusFilter === "blocked" ? u.isBlocked : !u.isBlocked).length === 0 ? (
                     <EmptyState
                       title="No Collectors Found"
                       description="No registered user accounts match the current filter query in MongoDB Atlas."
+                      actionLabel="+ Create Collector"
+                      onAction={() => {
+                        setNewUserForm({ name: "", email: "", password: "", phone: "" });
+                        setIsCreateUserOpen(true);
+                      }}
                       secondaryLabel="Clear Search"
-                      onSecondaryAction={() => setUserSearch("")}
+                      onSecondaryAction={() => {
+                        setUserSearch("");
+                        setUserStatusFilter("all");
+                      }}
                     />
                   ) : (
                     <div className="space-y-2.5 font-mono text-xs">
-                      {displayedUsers.map((col) => {
-                        const userId = col._id || col.id || "";
-                        return (
-                          <div
-                            key={userId || col.email}
-                            className="p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="font-bold truncate">{col.name}</p>
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                  col.role === "admin" ? "bg-[#ff5500] text-white" : "bg-black/10 dark:bg-white/10"
-                                }`}>
-                                  {col.role}
-                                </span>
+                      {displayedUsers
+                        .filter((u) => userStatusFilter === "all" ? true : userStatusFilter === "blocked" ? u.isBlocked : !u.isBlocked)
+                        .map((col) => {
+                          const userId = col._id || col.id || "";
+                          return (
+                            <div
+                              key={userId || col.email}
+                              className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                                col.isBlocked
+                                  ? "border-red-500/30 bg-red-500/5"
+                                  : "border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold truncate">{col.name}</p>
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                    col.role === "admin" ? "bg-[#ff5500] text-white" : "bg-black/10 dark:bg-white/10"
+                                  }`}>
+                                    {col.role}
+                                  </span>
+                                  {col.isBlocked && (
+                                    <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-red-500 text-white animate-pulse">
+                                      BLOCKED {col.blockedUntil ? `UNTIL ${new Date(col.blockedUntil).toLocaleDateString()}` : "PERMANENT"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] opacity-50 truncate mt-0.5">{col.email} • Phone: {col.phone || "N/A"}</p>
                               </div>
-                              <p className="text-[10px] opacity-50 truncate mt-0.5">{col.email} • Phone: {col.phone || "N/A"}</p>
+                              
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setEditingUser(col);
+                                    setEditUserForm({ name: col.name, phone: col.phone || "" });
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg border border-black/10 dark:border-white/10 text-[10px] cursor-pointer hover:bg-black/5 font-bold"
+                                  title="Edit Name and Phone"
+                                >
+                                  [EDIT]
+                                </button>
+                                
+                                <button
+                                  onClick={() => {
+                                    setBlockingUser(col);
+                                    setBlockDurationDays(col.isBlocked ? 0 : 7);
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                                    col.isBlocked ? "text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20" : "text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
+                                  }`}
+                                  title="Configure Timed Block"
+                                >
+                                  [{col.isBlocked ? "UNBLOCK / MANAGE" : "BLOCK ACCOUNT"}]
+                                </button>
+
+                                <button
+                                  onClick={() => setDeleteModalUser(col)}
+                                  className="px-2.5 py-1 rounded-lg text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white text-[10px] font-bold cursor-pointer transition-colors"
+                                  title="Delete User and Cascade Records"
+                                >
+                                  [DEL]
+                                </button>
+                              </div>
                             </div>
-                            
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                onClick={async () => {
-                                  if (!userId) return;
-                                  const newRole = col.role === "admin" ? "customer" : "admin";
-                                  const res = await userService.updateUser(userId, { role: newRole });
-                                  if (res.success) {
-                                    setUsersList((prev) => prev.map((u) => (u._id === userId ? { ...u, role: newRole } : u)));
-                                    toast.success(`Role updated for ${col.name} ➔ ${newRole.toUpperCase()}`);
-                                  } else {
-                                    toast.error(res.message || "Failed to update role");
-                                  }
-                                }}
-                                className="px-2.5 py-1 rounded-lg border border-black/10 dark:border-white/10 text-[10px] cursor-pointer hover:bg-black/5 font-bold"
-                              >
-                                Toggle Role
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (!userId) return;
-                                  const newBlocked = !col.isBlocked;
-                                  const res = await userService.toggleBlockUser(userId, newBlocked);
-                                  if (res.success) {
-                                    setUsersList((prev) => prev.map((u) => (u._id === userId ? { ...u, isBlocked: newBlocked } : u)));
-                                    toast.warning(`User ${col.name} ${newBlocked ? "BLOCKED" : "UNBLOCKED"}`);
-                                  } else {
-                                    toast.error(res.message || "Failed to toggle block status");
-                                  }
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
-                                  col.isBlocked ? "text-emerald-500 bg-emerald-500/10" : "text-red-500 bg-red-500/10"
-                                }`}
-                              >
-                                [{col.isBlocked ? "UNBLOCK" : "BLOCK"}]
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </div>
                   )}
                 </section>
@@ -1454,49 +1558,88 @@ export default function DashboardPage() {
 
                     {/* Column 2: Progress Wheel */}
                     <div className="space-y-4">
-                      <div
-                        className={`p-5 sm:p-6 rounded-3xl border text-center transition-all ${
-                          isWhite ? "bg-white/80 border-black/10" : "bg-[#121216] border-white/10"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-[10px] font-mono mb-2 sm:mb-3">
-                          <span className="opacity-60">[COLLECTOR TIER]</span>
-                          <span className="text-[#ff5500] font-bold">• PRO LEVEL 03</span>
-                        </div>
+                      {(() => {
+                        const collectorTotalSpent = orders.reduce(
+                          (sum, ord) => sum + (ord.orderStatus !== "cancelled" ? ord.totalAmount || 0 : 0),
+                          0
+                        );
+                        const userPoints = Math.floor(collectorTotalSpent) + (profileName ? 50 : 0);
+                        const currentTier = userPoints >= 1000 ? 4 : userPoints >= 500 ? 3 : userPoints >= 200 ? 2 : 1;
+                        const tierTitle =
+                          currentTier === 4
+                            ? "ARCHIVE ICON 04"
+                            : currentTier === 3
+                            ? "PRO LEVEL 03"
+                            : currentTier === 2
+                            ? "CLUB MEMBER 02"
+                            : "ROOKIE 01";
+                        const nextTierTitle =
+                          currentTier === 4
+                            ? "MAX LEVEL"
+                            : currentTier === 3
+                            ? "TIER 04 ICON"
+                            : currentTier === 2
+                            ? "TIER 03 PRO"
+                            : "TIER 02 MEMBER";
+                        const tierFloor = currentTier === 1 ? 0 : currentTier === 2 ? 200 : currentTier === 3 ? 500 : 1000;
+                        const tierGoal = currentTier === 1 ? 200 : currentTier === 2 ? 500 : currentTier === 3 ? 1000 : 1000;
+                        const progressPercent =
+                          currentTier === 4
+                            ? 100
+                            : Math.min(100, Math.max(0, Math.round(((userPoints - tierFloor) / (tierGoal - tierFloor)) * 100)));
+                        const pointsRemaining = Math.max(0, tierGoal - userPoints);
+                        const strokeOffset = 251.2 - (251.2 * progressPercent) / 100;
 
-                        <div className="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto my-2 flex items-center justify-center">
-                          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                            <circle
-                              cx="50"
-                              cy="50"
-                              r="40"
-                              stroke="currentColor"
-                              strokeWidth="8"
-                              className="text-black/10 dark:text-white/10"
-                              fill="transparent"
-                            />
-                            <circle
-                              cx="50"
-                              cy="50"
-                              r="40"
-                              stroke="#ff5500"
-                              strokeWidth="8"
-                              strokeDasharray="251.2"
-                              strokeDashoffset="30"
-                              strokeLinecap="round"
-                              fill="transparent"
-                            />
-                          </svg>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="font-mono text-lg sm:text-xl font-bold">88%</span>
-                            <span className="font-mono text-[7.5px] sm:text-[8px] opacity-50 uppercase">TO TIER 04</span>
+                        return (
+                          <div
+                            className={`p-5 sm:p-6 rounded-3xl border text-center transition-all ${
+                              isWhite ? "bg-white/80 border-black/10" : "bg-[#121216] border-white/10"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-[10px] font-mono mb-2 sm:mb-3">
+                              <span className="opacity-60">[COLLECTOR TIER]</span>
+                              <span className="text-[#ff5500] font-bold">• {tierTitle}</span>
+                            </div>
+
+                            <div className="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto my-2 flex items-center justify-center">
+                              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  stroke="currentColor"
+                                  strokeWidth="8"
+                                  className="text-black/10 dark:text-white/10"
+                                  fill="transparent"
+                                />
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  stroke="#ff5500"
+                                  strokeWidth="8"
+                                  strokeDasharray="251.2"
+                                  strokeDashoffset={strokeOffset}
+                                  strokeLinecap="round"
+                                  fill="transparent"
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="font-mono text-lg sm:text-xl font-bold">{progressPercent}%</span>
+                                <span className="font-mono text-[7.5px] sm:text-[8px] opacity-50 uppercase">
+                                  TO {nextTierTitle}
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="font-mono text-[8.5px] sm:text-[9px] opacity-50 mt-2 sm:mt-3">
+                              {currentTier === 4
+                                ? "VAULT VIP ACCESS GRANTED // PRIVATE DROPS ACTIVE"
+                                : `${pointsRemaining} PTS TO UNLOCK NEXT VAULT TIER ALLOCATION (${userPoints} PTS TOTAL)`}
+                            </p>
                           </div>
-                        </div>
-
-                        <p className="font-mono text-[8.5px] sm:text-[9px] opacity-50 mt-2 sm:mt-3">
-                          180 PTS UNLOCKS 98/99 TREBLE RETRO DROP ACCESS
-                        </p>
-                      </div>
+                        );
+                      })()}
 
                       {/* Drop Card */}
                       <div
@@ -1574,7 +1717,7 @@ export default function DashboardPage() {
                         >
                           <div className="relative w-full h-28 sm:h-32 my-1 flex items-center justify-center">
                             <Image
-                              src={kit.imageSrc}
+                              src={getSafeImageSrc(kit.imageSrc)}
                               alt={kit.club}
                               fill
                               className="object-contain drop-shadow-md"
@@ -1934,16 +2077,11 @@ export default function DashboardPage() {
           }}
         >
           <div
-            className={`relative w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-9 transition-all duration-300 ${
+            className={`relative w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-8 transition-all duration-200 border ${
               isWhite
-                ? "border border-black/10 text-[#0f0f0f] shadow-[0_30px_90px_rgba(0,0,0,0.18)]"
-                : "border border-white/12 text-white shadow-[0_30px_90px_rgba(0,0,0,0.9)]"
+                ? "bg-[#faf8f5] border-black/10 text-[#0f0f0f] shadow-2xl"
+                : "bg-[#111114] border-white/10 text-white shadow-2xl"
             }`}
-            style={{
-              background: isWhite
-                ? "radial-gradient(ellipse at 50% 0%, #ffffff 0%, #fbf8f2 50%, #f0eadc 100%)"
-                : "radial-gradient(ellipse at 50% 0%, #1e1e24 0%, #101013 55%, #070709 100%)",
-            }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top Close Button */}
@@ -1953,27 +2091,24 @@ export default function DashboardPage() {
                 setIsPublisherOpen(false);
                 setEditingJersey(null);
               }}
-              className={`absolute top-5 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-2xl transition-all cursor-pointer font-mono text-sm border ${
+              className={`absolute top-5 right-5 z-30 w-9 h-9 flex items-center justify-center rounded-xl transition-all cursor-pointer font-mono text-xs border ${
                 isWhite
-                  ? "bg-black/5 hover:bg-black/15 text-black border-black/10"
-                  : "bg-white/10 hover:bg-white/20 text-white border-white/15"
+                  ? "bg-black/5 hover:bg-black/10 text-black border-black/10"
+                  : "bg-white/5 hover:bg-white/10 text-white border-white/10"
               }`}
             >
               ✕
             </button>
 
             <div className="mb-6 border-b pb-4 border-black/10 dark:border-white/10">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2 h-2 rounded-full bg-[#ff5500]" />
-                <span className="font-mono text-[10px] tracking-widest text-[#ff5500] uppercase font-bold">
-                  {editingJersey ? "ADMIN EDIT SPEC // MONGODB SYNC" : "ADMIN PUBLISH // NEW SPEC"}
-                </span>
-              </div>
-              <h2 className="text-2xl font-bold tracking-tight">
+              <span className="font-mono text-[10px] tracking-widest uppercase opacity-40 font-semibold block mb-1">
+                {editingJersey ? "ADMIN CATALOG // EDIT SPECIFICATION" : "ADMIN CATALOG // NEW SPECIFICATION"}
+              </span>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
                 {editingJersey ? `Edit [${kitForm.code}] ${kitForm.name}` : "Publish Match-Issue Kit"}
               </h2>
-              <p className="text-xs opacity-60 mt-0.5">
-                Manage metadata, 3D landing carousel placement, and live stock in MongoDB Atlas.
+              <p className="text-xs opacity-50 mt-0.5">
+                Configure jersey metadata, landing orbit visibility, and live inventory allocation in MongoDB Atlas.
               </p>
             </div>
 
@@ -1985,7 +2120,7 @@ export default function DashboardPage() {
                 {/* Left Form Controls for Image */}
                 <div className="md:col-span-7 space-y-4 font-mono text-xs">
                   <div>
-                    <label className="block text-[10.5px] uppercase opacity-60 mb-2 font-bold">
+                    <label className="block text-[10px] uppercase opacity-50 mb-2 font-semibold tracking-wider">
                       1. Image Source Method
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -1998,9 +2133,11 @@ export default function DashboardPage() {
                           key={mode.id}
                           type="button"
                           onClick={() => setImageInputMode(mode.id)}
-                          className={`py-2 px-2 rounded-xl text-center transition-all cursor-pointer border text-[10px] ${
+                          className={`py-2 px-2 rounded-xl text-center transition-all cursor-pointer border text-[10px] font-semibold ${
                             imageInputMode === mode.id
-                              ? "bg-[#ff5500] text-white border-[#ff5500] font-bold"
+                              ? isWhite
+                                ? "bg-black text-white border-black"
+                                : "bg-white text-black border-white"
                               : isWhite
                               ? "bg-black/5 hover:bg-black/10 border-black/10 text-black/70"
                               : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70"
@@ -2015,7 +2152,7 @@ export default function DashboardPage() {
                   {/* Mode A: Preset Selector */}
                   {imageInputMode === "preset" && (
                     <div className="space-y-2">
-                      <label className="block text-[10px] opacity-60">Select Transparent Cutout Preset:</label>
+                      <label className="block text-[10px] opacity-50">Select Transparent Cutout Preset:</label>
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { name: "FC Barcelona", src: "/images/barca-jersey.svg" },
@@ -2027,10 +2164,10 @@ export default function DashboardPage() {
                             key={preset.src}
                             type="button"
                             onClick={() => setKitForm({ ...kitForm, imageSrc: preset.src })}
-                            className={`p-2 rounded-xl border text-left flex items-center gap-2 cursor-pointer ${
+                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2 cursor-pointer transition-all ${
                               kitForm.imageSrc === preset.src
                                 ? "border-[#ff5500] bg-[#ff5500]/10 text-[#ff5500] font-bold"
-                                : "border-black/10 dark:border-white/10 opacity-70"
+                                : "border-black/10 dark:border-white/10 opacity-70 hover:opacity-100"
                             }`}
                           >
                             <span className="text-xs">👕</span>
@@ -2041,39 +2178,71 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* Mode B: Web Image URL */}
+                  {/* Mode B: Web Image URL with Auto-Cutout */}
                   {imageInputMode === "url" && (
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] opacity-60">Enter Web Image URL (PNG/SVG recommended):</label>
-                      <input
-                        type="url"
-                        value={kitForm.imageSrc}
-                        onChange={(e) => setKitForm({ ...kitForm, imageSrc: e.target.value })}
-                        placeholder="https://example.com/jersey-cutout.png"
-                        className={`w-full h-11 px-3.5 rounded-xl border text-xs outline-none ${
-                          isWhite ? "bg-[#faf7f0] border-black/10" : "bg-[#16161a] border-white/10"
-                        }`}
-                      />
+                    <div className="space-y-2">
+                      <label className="block text-[10px] opacity-50">Enter or Paste Web Image URL:</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={kitForm.imageSrc}
+                          onChange={(e) => setKitForm({ ...kitForm, imageSrc: e.target.value })}
+                          onPaste={(e) => {
+                            const pasted = e.clipboardData.getData("text");
+                            if (pasted && (pasted.startsWith("http://") || pasted.startsWith("https://"))) {
+                              handleWebUrlCutout(pasted);
+                            }
+                          }}
+                          placeholder="https://example.com/jersey.jpg"
+                          className={`flex-1 h-10 px-3.5 rounded-xl border text-xs outline-none transition-colors ${
+                            isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          disabled={isRemovingBg || !kitForm.imageSrc}
+                          onClick={() => handleWebUrlCutout()}
+                          className="px-3 h-10 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 font-mono text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-40"
+                        >
+                          {isRemovingBg ? "Extracting..." : "Process"}
+                        </button>
+                      </div>
+                      <p className="text-[9px] opacity-40 font-mono">
+                        Pasting a URL automatically fetches the photo and strips its background.
+                      </p>
                     </div>
                   )}
 
                   {/* Mode C: Local File Upload */}
                   {imageInputMode === "upload" && (
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] opacity-60">Upload Transparent Image from Device:</label>
+                      <label className="block text-[10px] opacity-50">Upload Jersey Image from Device:</label>
                       <label
-                        className={`w-full h-24 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-colors ${
+                        className={`w-full h-24 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-all relative overflow-hidden ${
+                          isRemovingBg ? "pointer-events-none opacity-60" : ""
+                        } ${
                           isWhite
-                            ? "border-black/20 hover:border-[#ff5500] bg-black/5"
-                            : "border-white/20 hover:border-[#ff5500] bg-white/5"
+                            ? "border-black/15 hover:border-black/30 bg-black/[0.02]"
+                            : "border-white/15 hover:border-white/30 bg-white/[0.02]"
                         }`}
                       >
-                        <span className="text-xs">📁 Drag & Drop or Click to Select</span>
-                        <span className="text-[9px] opacity-50 mt-1">Accepts PNG, WebP, SVG</span>
+                        {isRemovingBg ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-xs font-mono opacity-80">Preparing transparent cutout...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-xs font-medium">Click to select or drag & drop jersey image</span>
+                            <span className="text-[9px] opacity-40 mt-1 font-mono">
+                              Accepts JPG, PNG, WebP, SVG
+                            </span>
+                          </>
+                        )}
                         <input
                           type="file"
-                          accept="image/png, image/webp, image/svg+xml"
+                          accept="image/*"
                           onChange={handleFileUpload}
+                          disabled={isRemovingBg}
                           className="hidden"
                         />
                       </label>
@@ -2083,15 +2252,15 @@ export default function DashboardPage() {
 
                 {/* Right: Live 3D Test Stage */}
                 <div className="md:col-span-5 flex flex-col items-center">
-                  <span className="font-mono text-[9px] text-[#ff5500] uppercase font-bold tracking-wider mb-2">
-                    Live 3D Test Stage (Hover to Tilt)
+                  <span className="font-mono text-[9px] uppercase opacity-50 font-semibold tracking-wider mb-2">
+                    [3D SPEC PREVIEW // HOVER TO TILT]
                   </span>
                   
                   <div
                     onMouseMove={handlePreviewMouseMove}
                     onMouseLeave={handlePreviewMouseLeave}
-                    className={`relative w-full h-48 sm:h-56 rounded-3xl border flex items-center justify-center p-4 overflow-hidden cursor-crosshair transition-all ${
-                      isWhite ? "bg-black/5 border-black/10" : "bg-black/40 border-white/10"
+                    className={`relative w-full h-48 sm:h-56 rounded-2xl border flex items-center justify-center p-4 overflow-hidden cursor-crosshair transition-all ${
+                      isWhite ? "bg-black/[0.02] border-black/10" : "bg-black/30 border-white/10"
                     }`}
                   >
                     <div
@@ -2103,7 +2272,7 @@ export default function DashboardPage() {
                       }}
                     >
                       <Image
-                        src={kitForm.imageSrc || "/images/barca-jersey.svg"}
+                        src={getSafeImageSrc(kitForm.imageSrc)}
                         alt="3D Preview"
                         fill
                         className="object-contain"
@@ -2120,70 +2289,147 @@ export default function DashboardPage() {
               {/* Kit Metadata Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
                 <div>
-                  <label className="block text-[10px] uppercase opacity-60 mb-1">Kit Code *</label>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1">Kit Code *</label>
                   <input
                     type="text"
                     required
                     value={kitForm.code}
                     onChange={(e) => setKitForm({ ...kitForm, code: e.target.value.toUpperCase() })}
                     placeholder="e.g. 13/JUV-9798"
-                    className={`w-full h-10 px-3 rounded-xl border outline-none ${
-                      isWhite ? "bg-[#faf7f0] border-black/10" : "bg-[#16161a] border-white/10"
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                      isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
                     }`}
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-[10px] uppercase opacity-60 mb-1">Kit Title *</label>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1">Kit Title *</label>
                   <input
                     type="text"
                     required
                     value={kitForm.name}
                     onChange={(e) => setKitForm({ ...kitForm, name: e.target.value })}
                     placeholder="e.g. JUVENTUS 97/98 CENTENARIO PINK"
-                    className={`w-full h-10 px-3 rounded-xl border outline-none ${
-                      isWhite ? "bg-[#faf7f0] border-black/10" : "bg-[#16161a] border-white/10"
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                      isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
                     }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase opacity-60 mb-1">Club / Entity *</label>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1 font-semibold">Club / Country *</label>
                   <input
                     type="text"
                     required
                     value={kitForm.club}
-                    onChange={(e) => setKitForm({ ...kitForm, club: e.target.value })}
-                    placeholder="e.g. JUVENTUS FC"
-                    className={`w-full h-10 px-3 rounded-xl border outline-none ${
-                      isWhite ? "bg-[#faf7f0] border-black/10" : "bg-[#16161a] border-white/10"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const isNational = /portugal|argentina|brazil|france|england|germany|italy|spain|netherlands|japan|croatia/i.test(val);
+                      const isPremier = /arsenal|manchester|chelsea|liverpool|tottenham|city/i.test(val);
+                      const isSerieA = /milan|juventus|inter|roma|napoli/i.test(val);
+                      const isLaLiga = /madrid|barcelona|atletico|sevilla|valencia/i.test(val);
+                      const isBundesliga = /bayern|dortmund|leverkusen|leipzig/i.test(val);
+                      const isLigue1 = /psg|paris|marseille|monaco|lyon/i.test(val);
+
+                      let newLeague = kitForm.league;
+                      let newCat = kitForm.category;
+
+                      if (isNational) {
+                        newLeague = "International / National Teams";
+                        newCat = "nation";
+                      } else if (isPremier) {
+                        newLeague = "Premier League";
+                      } else if (isSerieA) {
+                        newLeague = "Serie A";
+                      } else if (isLaLiga) {
+                        newLeague = "La Liga";
+                      } else if (isBundesliga) {
+                        newLeague = "Bundesliga";
+                      } else if (isLigue1) {
+                        newLeague = "Ligue 1";
+                      }
+
+                      setKitForm({
+                        ...kitForm,
+                        club: val,
+                        league: newLeague,
+                        category: newCat,
+                      });
+                    }}
+                    placeholder="e.g. PORTUGAL or FC BARCELONA"
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                      isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
                     }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase opacity-60 mb-1">Season / Spec</label>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1 font-semibold">Category / Type *</label>
+                  <select
+                    value={kitForm.category}
+                    onChange={(e) =>
+                      setKitForm({
+                        ...kitForm,
+                        category: e.target.value as "club" | "retro" | "special" | "vintage" | "nation",
+                      })
+                    }
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors cursor-pointer ${
+                      isWhite ? "bg-white border-black/15 text-black" : "bg-[#18181c] border-white/10 text-white"
+                    }`}
+                  >
+                    <option value="club">Club Match Kit</option>
+                    <option value="nation">National Team / International</option>
+                    <option value="retro">Retro Archive</option>
+                    <option value="vintage">Vintage Classic</option>
+                    <option value="special">Special / Anniversary</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1 font-semibold">League / Competition *</label>
+                  <select
+                    value={kitForm.league}
+                    onChange={(e) => setKitForm({ ...kitForm, league: e.target.value })}
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors cursor-pointer ${
+                      isWhite ? "bg-white border-black/15 text-black" : "bg-[#18181c] border-white/10 text-white"
+                    }`}
+                  >
+                    <option value="La Liga">La Liga (Spain)</option>
+                    <option value="Premier League">Premier League (England)</option>
+                    <option value="Serie A">Serie A (Italy)</option>
+                    <option value="Bundesliga">Bundesliga (Germany)</option>
+                    <option value="Ligue 1">Ligue 1 (France)</option>
+                    <option value="International / National Teams">International / National Teams</option>
+                    <option value="UEFA Champions League">UEFA Champions League</option>
+                    <option value="Vintage Archive">Vintage Archive</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1 font-semibold">Season / Spec</label>
                   <input
                     type="text"
                     value={kitForm.season}
                     onChange={(e) => setKitForm({ ...kitForm, season: e.target.value })}
                     placeholder="97/98 MATCH SPEC"
-                    className={`w-full h-10 px-3 rounded-xl border outline-none ${
-                      isWhite ? "bg-[#faf7f0] border-black/10" : "bg-[#16161a] border-white/10"
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                      isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
                     }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase opacity-60 mb-1">Price / Valuation</label>
+                  <label className="block text-[10px] uppercase opacity-50 mb-1 font-semibold">
+                    Price / Valuation (NPR Rs.) *
+                  </label>
                   <input
                     type="text"
                     required
                     value={kitForm.price}
                     onChange={(e) => setKitForm({ ...kitForm, price: e.target.value })}
-                    placeholder="$145.00"
-                    className={`w-full h-10 px-3 rounded-xl border outline-none ${
-                      isWhite ? "bg-[#faf7f0] border-black/10" : "bg-[#16161a] border-white/10"
+                    placeholder="Rs. 2,500"
+                    className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                      isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
                     }`}
                   />
                 </div>
@@ -2192,15 +2438,15 @@ export default function DashboardPage() {
               {/* Placement & Visibility Checkboxes */}
               <div
                 className={`p-4 rounded-2xl border font-mono text-xs space-y-3 ${
-                  isWhite ? "bg-black/5 border-black/10" : "bg-white/5 border-white/10"
+                  isWhite ? "bg-black/[0.02] border-black/10" : "bg-white/[0.02] border-white/10"
                 }`}
               >
-                <span className="text-[10px] font-bold uppercase text-[#ff5500] block">
-                  Placement & Visibility Controls
+                <span className="text-[10px] font-bold uppercase opacity-50 block tracking-wider">
+                  [PLACEMENT & STORE VISIBILITY]
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer opacity-80 hover:opacity-100">
                     <input
                       type="checkbox"
                       checked={kitForm.showOnLanding}
@@ -2210,7 +2456,7 @@ export default function DashboardPage() {
                     <span>Show on 3D Landing Carousel</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer opacity-80 hover:opacity-100">
                     <input
                       type="checkbox"
                       checked={kitForm.showInShop}
@@ -2220,7 +2466,7 @@ export default function DashboardPage() {
                     <span>Show in Shop Archive</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer opacity-80 hover:opacity-100">
                     <input
                       type="checkbox"
                       checked={kitForm.featured}
@@ -2240,13 +2486,13 @@ export default function DashboardPage() {
                     setIsPublisherOpen(false);
                     setEditingJersey(null);
                   }}
-                  className="px-5 py-2.5 rounded-xl font-mono text-xs border border-black/15 dark:border-white/15 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl font-mono text-xs border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 opacity-70 hover:opacity-100 cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#ff5500] to-[#e64000] text-white font-mono text-xs font-bold uppercase tracking-wider rounded-xl shadow-[0_4px_15px_rgba(255,85,0,0.35)] cursor-pointer"
+                  className="px-6 py-2.5 bg-[#ff5500] hover:bg-[#ff661a] text-white font-mono text-xs font-bold uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-all"
                 >
                   {editingJersey ? "Save Changes to MongoDB →" : "Publish to MongoDB Atlas →"}
                 </button>
@@ -2378,6 +2624,349 @@ export default function DashboardPage() {
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteModalKit(null)}
+      />
+
+      {/* ── Admin: Create Collector Modal ───────────────────────────── */}
+      {isCreateUserOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setIsCreateUserOpen(false)}
+        >
+          <div
+            className={`relative w-full max-w-md rounded-3xl p-6 sm:p-8 font-mono text-xs border transition-all duration-200 ${
+              isWhite
+                ? "bg-[#faf8f5] border-black/15 text-black shadow-2xl"
+                : "bg-[#111114] border-white/10 text-white shadow-2xl"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b pb-3 mb-4 border-black/10 dark:border-white/10">
+              <span className="font-bold text-xs uppercase opacity-50 tracking-wider">[CREATE COLLECTOR ACCOUNT]</span>
+              <button
+                onClick={() => setIsCreateUserOpen(false)}
+                className="opacity-50 hover:opacity-100 cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setIsCreatingUser(true);
+                const res = await userService.createUserByAdmin(newUserForm);
+                setIsCreatingUser(false);
+                if (res.success) {
+                  toast.success(`✓ Collector account created for ${newUserForm.name}!`);
+                  setIsCreateUserOpen(false);
+                  refreshUsers();
+                } else {
+                  toast.error(res.message || "Failed to create user");
+                }
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">Full Name (Capitalized)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="John Doe"
+                  value={newUserForm.name}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                  className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                    isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="john@example.com"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                    isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">10-Digit Phone</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="9812345678"
+                  value={newUserForm.phone}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
+                  className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                    isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">Password (Uppercase, Number, Special)</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Strong@123"
+                  value={newUserForm.password}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                  className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                    isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                  }`}
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateUserOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 opacity-70 hover:opacity-100 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingUser}
+                  className="px-5 py-2 bg-[#ff5500] hover:bg-[#ff661a] text-white font-bold rounded-xl shadow-md cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  {isCreatingUser ? "Creating..." : "Create Account →"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin: Edit Collector Modal (Name & Phone) ─────────────── */}
+      {editingUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setEditingUser(null)}
+        >
+          <div
+            className={`relative w-full max-w-md rounded-3xl p-6 sm:p-8 font-mono text-xs border transition-all duration-200 ${
+              isWhite
+                ? "bg-[#faf8f5] border-black/15 text-black shadow-2xl"
+                : "bg-[#111114] border-white/10 text-white shadow-2xl"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b pb-3 mb-4 border-black/10 dark:border-white/10">
+              <span className="font-bold text-xs uppercase opacity-50 tracking-wider">[EDIT COLLECTOR]</span>
+              <button
+                onClick={() => setEditingUser(null)}
+                className="opacity-50 hover:opacity-100 cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const userId = editingUser._id || editingUser.id;
+                if (!userId) return;
+                setIsUpdatingUser(true);
+                const res = await userService.updateUser(userId, editUserForm);
+                setIsUpdatingUser(false);
+                if (res.success) {
+                  toast.success(`✓ Updated details for ${editUserForm.name}!`);
+                  setEditingUser(null);
+                  refreshUsers();
+                } else {
+                  toast.error(res.message || "Failed to update user");
+                }
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">Email Address (Read-Only)</label>
+                <input
+                  type="email"
+                  disabled
+                  value={editingUser.email}
+                  className="w-full h-10 px-3 rounded-xl border border-black/10 dark:border-white/10 opacity-50 bg-black/5 dark:bg-white/5 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                  className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                    isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase opacity-50 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  required
+                  value={editUserForm.phone}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                  className={`w-full h-10 px-3 rounded-xl border outline-none transition-colors ${
+                    isWhite ? "bg-white border-black/15 focus:border-black/40 text-black" : "bg-[#18181c] border-white/10 focus:border-white/30 text-white"
+                  }`}
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 opacity-70 hover:opacity-100 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingUser}
+                  className="px-5 py-2 bg-[#ff5500] hover:bg-[#ff661a] text-white font-bold rounded-xl shadow-md cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  {isUpdatingUser ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin: Timed Block Modal (durationDays) ──────────────────── */}
+      {blockingUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setBlockingUser(null)}
+        >
+          <div
+            className={`relative w-full max-w-md rounded-3xl p-6 sm:p-8 font-mono text-xs border transition-all duration-200 ${
+              isWhite
+                ? "bg-[#faf8f5] border-black/15 text-black shadow-2xl"
+                : "bg-[#111114] border-white/10 text-white shadow-2xl"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b pb-3 mb-4 border-black/10 dark:border-white/10">
+              <span className="font-bold text-xs uppercase opacity-50 tracking-wider">[SECURITY // ACCOUNT ACCESS]</span>
+              <button
+                onClick={() => setBlockingUser(null)}
+                className="opacity-50 hover:opacity-100 cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="mb-4 opacity-70 leading-relaxed">
+              Configure access block for <strong className="font-bold">{blockingUser.name}</strong> ({blockingUser.email}).
+              Blocked users cannot log in or make protected orders until the block period expires.
+            </p>
+
+            <div className="space-y-3 mb-5">
+              <label className="block text-[10px] uppercase opacity-50 font-semibold tracking-wider">Select Block Duration:</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { days: 0, label: "🟢 Unblock (Active)" },
+                  { days: 1, label: "⏱️ 1 Day" },
+                  { days: 3, label: "⏱️ 3 Days" },
+                  { days: 7, label: "⏱️ 7 Days" },
+                  { days: 30, label: "⏱️ 30 Days" },
+                  { days: 365, label: "⛔ 1 Year" },
+                ].map((dur) => (
+                  <button
+                    key={dur.days}
+                    type="button"
+                    onClick={() => setBlockDurationDays(dur.days)}
+                    className={`py-2 px-3 rounded-xl border text-[11px] font-semibold text-left transition-all cursor-pointer ${
+                      blockDurationDays === dur.days
+                        ? "border-[#ff5500] bg-[#ff5500]/10 text-[#ff5500] font-bold"
+                        : "border-black/10 dark:border-white/10 opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    {dur.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBlockingUser(null)}
+                className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 opacity-70 hover:opacity-100 cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBlocking}
+                onClick={async () => {
+                  const userId = blockingUser._id || blockingUser.id;
+                  if (!userId) return;
+                  setIsBlocking(true);
+                  const res = await userService.toggleBlockWithDuration(userId, blockDurationDays);
+                  setIsBlocking(false);
+                  if (res.success) {
+                    toast.success(
+                      blockDurationDays === 0
+                        ? `✓ ${blockingUser.name} unblocked successfully!`
+                        : `⛔ ${blockingUser.name} blocked for ${blockDurationDays} days`
+                    );
+                    setBlockingUser(null);
+                    refreshUsers();
+                  } else {
+                    toast.error(res.message || "Failed to update block status");
+                  }
+                }}
+                className="px-5 py-2 bg-[#ff5500] hover:bg-[#ff661a] text-white font-bold rounded-xl shadow-md cursor-pointer disabled:opacity-50 transition-all"
+              >
+                {isBlocking ? "Applying..." : blockDurationDays === 0 ? "Lift Block" : `Apply ${blockDurationDays}-Day Block`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin: Delete Collector Confirm Modal ────────────────────── */}
+      <ConfirmModal
+        isOpen={!!deleteModalUser}
+        title="Permanently Delete Collector Account"
+        badgeText="CASCADING MONGODB DELETION"
+        highlightText={
+          deleteModalUser
+            ? `${deleteModalUser.name} (${deleteModalUser.email})`
+            : undefined
+        }
+        message="Are you sure you want to permanently delete this customer account? According to security rules, this will permanently remove their User document, active Cart, and all historical Order records from MongoDB."
+        confirmLabel="Erase Collector & Orders"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={isDeletingUser}
+        onConfirm={async () => {
+          if (!deleteModalUser) return;
+          const userId = deleteModalUser._id || deleteModalUser.id;
+          if (!userId) return;
+          setIsDeletingUser(true);
+          const res = await userService.deleteUser(userId);
+          setIsDeletingUser(false);
+          if (res.success) {
+            toast.success(`✓ Account and associated records erased for ${deleteModalUser.name}`);
+            setDeleteModalUser(null);
+            refreshUsers();
+          } else {
+            toast.error(res.message || "Failed to delete user");
+          }
+        }}
+        onCancel={() => setDeleteModalUser(null)}
       />
     </main>
   );
