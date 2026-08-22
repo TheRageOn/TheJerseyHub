@@ -45,7 +45,14 @@ interface ConfirmedOrderDetails {
 type PaymentRail = "COD" | "STRIPE" | "ESEWA" | "KHALTI";
 
 export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
-  const { items, subtotal, clearCart, updateQuantity, removeFromCart, formatPrice } = useCart();
+  const {
+    items,
+    subtotal,
+    clearCart,
+    updateQuantity,
+    removeFromCart,
+    formatPrice,
+  } = useCart();
   const { user } = useAuth();
   const { isWhite } = useTheme();
 
@@ -59,8 +66,11 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   });
 
   const [paymentRail, setPaymentRail] = useState<PaymentRail>("COD");
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
-  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrderDetails | null>(null);
+  const [status, setStatus] = useState<
+    "idle" | "submitting" | "success" | "error"
+  >("idle");
+  const [confirmedOrder, setConfirmedOrder] =
+    useState<ConfirmedOrderDetails | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [activeCert, setActiveCert] = useState<{
     mintId: string;
@@ -77,7 +87,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   if (!isOpen) return null;
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -85,7 +97,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) {
-      setErrorMessage("Your bag is currently empty. Add a kit before checking out.");
+      setErrorMessage(
+        "Your bag is currently empty. Add a kit before checking out.",
+      );
       return;
     }
 
@@ -95,11 +109,8 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     const orderPayload = {
       items: items.map((i) => ({
         product: i.id,
-        name: i.jersey.name,
         size: i.size,
         quantity: i.quantity,
-        price: i.priceNumeric,
-        image: i.jersey.imageSrc,
         customization: i.customization,
       })),
       shippingAddress: {
@@ -109,16 +120,6 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         city: formData.city,
         country: "Nepal",
       },
-      paymentMethod:
-        paymentRail === "COD"
-          ? "Cash on Delivery"
-          : paymentRail === "STRIPE"
-          ? "Stripe / Card"
-          : paymentRail === "ESEWA"
-          ? "eSewa Mobile Wallet"
-          : "Khalti Digital Wallet",
-      paymentStatus: paymentRail === "COD" ? "pending" : "paid",
-      totalAmount: subtotal,
     };
 
     const orderDateStr = new Date().toLocaleString("en-US", {
@@ -130,13 +131,22 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     });
 
     try {
-      const res = await apiRequest<{ _id?: string; id?: string }>("/orders", {
-        method: "POST",
-        body: JSON.stringify(orderPayload),
-      });
+      const res = await apiRequest<{ order: { _id?: string; id?: string } }>(
+        "/orders",
+        {
+          method: "POST",
+          body: JSON.stringify(orderPayload),
+        },
+      );
+
+      if (!res.success || !res.data?.order) {
+        throw new Error(res.message || "Order could not be created");
+      }
 
       const generatedId =
-        res.data?._id || res.data?.id || `TJH-${Math.floor(100000 + Math.random() * 900000)}`;
+        res.data.order._id ||
+        res.data.order.id ||
+        `TJH-${Math.floor(100000 + Math.random() * 900000)}`;
 
       setConfirmedOrder({
         orderId: generatedId,
@@ -156,7 +166,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         subtotal,
         shipping: 0,
         total: subtotal,
-        paymentMethod: orderPayload.paymentMethod,
+        paymentMethod: "Cash on Delivery",
       });
 
       setStatus("success");
@@ -228,55 +238,94 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             <div ref={receiptRef} className="space-y-6">
               <div className="text-center pb-4 border-b border-black/10 dark:border-white/10">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-[#ff5500]/10 border border-[#ff5500]/30 flex items-center justify-center text-[#ff5500]">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2.5"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
                 <span className="font-mono text-[10px] tracking-widest text-[#ff5500] uppercase font-bold block mb-1">
                   ORDER SUCCESSFUL // DISPATCH CONFIRMED
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Thank you for your order</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                  Thank you for your order
+                </h2>
                 <p className="text-sm opacity-60 mt-1">
-                  Your kit reservation is confirmed and scheduled for express dispatch.
+                  Your kit reservation is confirmed and scheduled for express
+                  dispatch.
                 </p>
               </div>
 
               {/* Digital Receipt Card */}
               <div
                 className={`p-6 sm:p-8 rounded-2xl border text-sm space-y-5 ${
-                  isWhite ? "bg-white border-black/10 shadow-sm" : "bg-[#16161b] border-white/10"
+                  isWhite
+                    ? "bg-white border-black/10 shadow-sm"
+                    : "bg-[#16161b] border-white/10"
                 }`}
               >
                 {/* Header Meta */}
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b border-black/5 dark:border-white/5 text-xs">
                   <div>
-                    <span className="opacity-40 uppercase block text-[10px] tracking-wider">Official Order Ref</span>
-                    <span className="font-mono font-bold text-[#ff5500] text-sm">{confirmedOrder.orderId}</span>
+                    <span className="opacity-40 uppercase block text-[10px] tracking-wider">
+                      Official Order Ref
+                    </span>
+                    <span className="font-mono font-bold text-[#ff5500] text-sm">
+                      {confirmedOrder.orderId}
+                    </span>
                   </div>
                   <div className="sm:text-right">
-                    <span className="opacity-40 uppercase block text-[10px] tracking-wider">Date & Payment</span>
-                    <span className="font-mono">{confirmedOrder.date} • {confirmedOrder.paymentMethod}</span>
+                    <span className="opacity-40 uppercase block text-[10px] tracking-wider">
+                      Date & Payment
+                    </span>
+                    <span className="font-mono">
+                      {confirmedOrder.date} • {confirmedOrder.paymentMethod}
+                    </span>
                   </div>
                 </div>
 
                 {/* Customer & Destination */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-4 border-b border-black/5 dark:border-white/5 text-xs">
                   <div>
-                    <span className="opacity-40 uppercase block text-[10px] tracking-wider mb-1 font-bold">Recipient</span>
-                    <p className="font-semibold text-sm">{confirmedOrder.customer.name}</p>
-                    <p className="opacity-60">{confirmedOrder.customer.email}</p>
-                    <p className="opacity-60">{confirmedOrder.customer.phone}</p>
+                    <span className="opacity-40 uppercase block text-[10px] tracking-wider mb-1 font-bold">
+                      Recipient
+                    </span>
+                    <p className="font-semibold text-sm">
+                      {confirmedOrder.customer.name}
+                    </p>
+                    <p className="opacity-60">
+                      {confirmedOrder.customer.email}
+                    </p>
+                    <p className="opacity-60">
+                      {confirmedOrder.customer.phone}
+                    </p>
                   </div>
                   <div>
-                    <span className="opacity-40 uppercase block text-[10px] tracking-wider mb-1 font-bold">Destination</span>
-                    <p className="font-medium">{confirmedOrder.customer.address}</p>
-                    <p className="opacity-70">{confirmedOrder.customer.city}, Nepal</p>
+                    <span className="opacity-40 uppercase block text-[10px] tracking-wider mb-1 font-bold">
+                      Destination
+                    </span>
+                    <p className="font-medium">
+                      {confirmedOrder.customer.address}
+                    </p>
+                    <p className="opacity-70">
+                      {confirmedOrder.customer.city}, Nepal
+                    </p>
                   </div>
                 </div>
 
                 {/* Ordered Items */}
                 <div>
-                  <span className="opacity-40 uppercase block text-[10px] tracking-wider mb-3 font-bold">Purchased Kits</span>
+                  <span className="opacity-40 uppercase block text-[10px] tracking-wider mb-3 font-bold">
+                    Purchased Kits
+                  </span>
                   <div className="space-y-3">
                     {confirmedOrder.items.map((item) => (
                       <div
@@ -295,7 +344,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             </div>
                           )}
                           <div>
-                            <p className="font-bold text-sm leading-snug">{item.name}</p>
+                            <p className="font-bold text-sm leading-snug">
+                              {item.name}
+                            </p>
                             <div className="flex items-center gap-2 text-xs opacity-60 mt-0.5">
                               <span>Size: [{item.size}]</span>
                               <span>•</span>
@@ -303,7 +354,8 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             </div>
                             {item.customization?.playerName && (
                               <p className="text-xs text-[#ff5500] font-semibold mt-0.5">
-                                [PRESS: {item.customization.playerName} #{item.customization.playerNumber}]
+                                [PRESS: {item.customization.playerName} #
+                                {item.customization.playerNumber}]
                               </p>
                             )}
                           </div>
@@ -342,7 +394,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                 <div className="pt-2 space-y-2 text-xs">
                   <div className="flex justify-between opacity-60">
                     <span>Subtotal</span>
-                    <span className="font-mono">{formatPrice(confirmedOrder.subtotal)}</span>
+                    <span className="font-mono">
+                      {formatPrice(confirmedOrder.subtotal)}
+                    </span>
                   </div>
                   <div className="flex justify-between opacity-60">
                     <span>Express Courier Shipping</span>
@@ -350,7 +404,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   </div>
                   <div className="flex justify-between pt-3 border-t border-black/10 dark:border-white/10 font-bold text-base">
                     <span>Total Due</span>
-                    <span className="font-mono text-[#ff5500] text-lg">{formatPrice(confirmedOrder.total)}</span>
+                    <span className="font-mono text-[#ff5500] text-lg">
+                      {formatPrice(confirmedOrder.total)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -389,7 +445,8 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   Review & Place Order
                 </h2>
                 <p className="text-xs sm:text-sm opacity-60 mt-1">
-                  Specify your delivery details and select your preferred payment rail.
+                  Specify your delivery details and select your preferred
+                  payment rail.
                 </p>
               </div>
 
@@ -400,9 +457,11 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
                 {/* Left Column: Delivery Form */}
-                <form onSubmit={handlePlaceOrder} className="lg:col-span-7 space-y-4">
+                <form
+                  onSubmit={handlePlaceOrder}
+                  className="lg:col-span-7 space-y-4"
+                >
                   <div>
                     <label className="block text-xs uppercase opacity-60 mb-1.5 font-semibold tracking-wider">
                       Full Name *
@@ -517,10 +576,18 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-xs">[COD] Cash on Delivery</span>
-                          {paymentRail === "COD" && <span className="text-[#ff5500] text-xs font-bold">●</span>}
+                          <span className="font-bold text-xs">
+                            [COD] Cash on Delivery
+                          </span>
+                          {paymentRail === "COD" && (
+                            <span className="text-[#ff5500] text-xs font-bold">
+                              ●
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs opacity-60">Pay cash upon courier arrival</p>
+                        <p className="text-xs opacity-60">
+                          Pay cash upon courier arrival
+                        </p>
                       </button>
 
                       {/* Stripe */}
@@ -534,10 +601,18 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-xs">[CARD] Stripe / Card</span>
-                          {paymentRail === "STRIPE" && <span className="text-[#ff5500] text-xs font-bold">●</span>}
+                          <span className="font-bold text-xs">
+                            [CARD] Stripe / Card
+                          </span>
+                          {paymentRail === "STRIPE" && (
+                            <span className="text-[#ff5500] text-xs font-bold">
+                              ●
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs opacity-60">Visa, MasterCard, Apple Pay</p>
+                        <p className="text-xs opacity-60">
+                          Visa, MasterCard, Apple Pay
+                        </p>
                       </button>
 
                       {/* eSewa */}
@@ -551,10 +626,18 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-xs">[ESEWA] eSewa Wallet</span>
-                          {paymentRail === "ESEWA" && <span className="text-[#ff5500] text-xs font-bold">●</span>}
+                          <span className="font-bold text-xs">
+                            [ESEWA] eSewa Wallet
+                          </span>
+                          {paymentRail === "ESEWA" && (
+                            <span className="text-[#ff5500] text-xs font-bold">
+                              ●
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs opacity-60">Instant digital wallet QR</p>
+                        <p className="text-xs opacity-60">
+                          Instant digital wallet QR
+                        </p>
                       </button>
 
                       {/* Khalti */}
@@ -568,10 +651,18 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-xs">[KHALTI] Khalti Wallet</span>
-                          {paymentRail === "KHALTI" && <span className="text-[#ff5500] text-xs font-bold">●</span>}
+                          <span className="font-bold text-xs">
+                            [KHALTI] Khalti Wallet
+                          </span>
+                          {paymentRail === "KHALTI" && (
+                            <span className="text-[#ff5500] text-xs font-bold">
+                              ●
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs opacity-60">Direct mobile checkout</p>
+                        <p className="text-xs opacity-60">
+                          Direct mobile checkout
+                        </p>
                       </button>
                     </div>
                   </div>
@@ -586,7 +677,8 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         <span>Processing Order...</span>
                       ) : (
                         <span>
-                          Confirm Order ({paymentRail}) • {formatPrice(subtotal)} →
+                          Confirm Order ({paymentRail}) •{" "}
+                          {formatPrice(subtotal)} →
                         </span>
                       )}
                     </button>
@@ -597,12 +689,15 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                 <div className="lg:col-span-5 space-y-4">
                   <div
                     className={`p-5 sm:p-6 rounded-2xl border ${
-                      isWhite ? "bg-white border-black/10 shadow-sm" : "bg-[#16161b] border-white/10"
+                      isWhite
+                        ? "bg-white border-black/10 shadow-sm"
+                        : "bg-[#16161b] border-white/10"
                     }`}
                   >
                     <div className="flex items-center justify-between pb-3 mb-4 border-b border-black/5 dark:border-white/5">
                       <span className="font-bold text-xs uppercase opacity-60 tracking-wider">
-                        Order Summary ({items.length} {items.length === 1 ? "item" : "items"})
+                        Order Summary ({items.length}{" "}
+                        {items.length === 1 ? "item" : "items"})
                       </span>
                     </div>
 
@@ -623,22 +718,38 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               />
                             </div>
                             <div className="min-w-0">
-                              <p className="font-semibold text-xs leading-snug line-clamp-2">{item.jersey.name}</p>
+                              <p className="font-semibold text-xs leading-snug line-clamp-2">
+                                {item.jersey.name}
+                              </p>
                               <div className="flex items-center gap-2 text-xs opacity-60 mt-1">
                                 <span>Size: [{item.size}]</span>
                                 <span>•</span>
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => updateQuantity(item.id, item.size, item.quantity - 1)}
+                                    onClick={() =>
+                                      updateQuantity(
+                                        item.id,
+                                        item.size,
+                                        item.quantity - 1,
+                                      )
+                                    }
                                     className="hover:text-[#ff5500] px-1 font-bold"
                                   >
                                     -
                                   </button>
-                                  <span className="font-mono">{item.quantity}</span>
+                                  <span className="font-mono">
+                                    {item.quantity}
+                                  </span>
                                   <button
                                     type="button"
-                                    onClick={() => updateQuantity(item.id, item.size, item.quantity + 1)}
+                                    onClick={() =>
+                                      updateQuantity(
+                                        item.id,
+                                        item.size,
+                                        item.quantity + 1,
+                                      )
+                                    }
                                     className="hover:text-[#ff5500] px-1 font-bold"
                                   >
                                     +
@@ -647,7 +758,8 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               </div>
                               {item.customization?.playerName && (
                                 <p className="text-[11px] text-[#ff5500] font-medium mt-1">
-                                  [PRESS: {item.customization.playerName} #{item.customization.playerNumber}]
+                                  [PRESS: {item.customization.playerName} #
+                                  {item.customization.playerNumber}]
                                 </p>
                               )}
                             </div>
@@ -673,7 +785,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     <div className="pt-4 space-y-2 border-t border-black/5 dark:border-white/5 text-xs">
                       <div className="flex justify-between opacity-60">
                         <span>Subtotal</span>
-                        <span className="font-mono">{formatPrice(subtotal)}</span>
+                        <span className="font-mono">
+                          {formatPrice(subtotal)}
+                        </span>
                       </div>
                       <div className="flex justify-between opacity-60">
                         <span>Express Courier Shipping</span>
@@ -681,7 +795,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                       </div>
                       <div className="flex justify-between pt-3 border-t border-black/10 dark:border-white/10 font-bold text-sm">
                         <span>Total Due</span>
-                        <span className="font-mono text-[#ff5500] text-base">{formatPrice(subtotal)}</span>
+                        <span className="font-mono text-[#ff5500] text-base">
+                          {formatPrice(subtotal)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -692,7 +808,6 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     <p>• Express delivery in 2-3 business days</p>
                   </div>
                 </div>
-
               </div>
             </>
           )}

@@ -2,7 +2,14 @@ const orderService = require("../services/order.service");
 
 exports.createOrder = async (req, res) => {
   try {
-    const userId = req.user?.id || req.user?._id;
+    const userId = req.user?._id || req.user?.id;
+    if (!userId || !req.user?._id) {
+      return res.status(401).json({
+        success: false,
+        message: "A logged-in customer account is required to place an order",
+      });
+    }
+
     const order = await orderService.createOrder(req.body, userId);
     res.status(201).json({
       success: true,
