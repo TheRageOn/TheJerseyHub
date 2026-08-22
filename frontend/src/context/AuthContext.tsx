@@ -16,8 +16,16 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; message?: string }>;
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    phone?: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   updateUser: (updatedUser: Partial<User>) => void;
 }
@@ -41,10 +49,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(JSON.parse(storedUser));
 
           // Verify with backend
-          const res = await apiRequest<User>("/auth/me");
-          if (res.success && res.data) {
-            setUser(res.data);
-            localStorage.setItem("tjh_user", JSON.stringify(res.data));
+          const res = await apiRequest<{ user: User }>("/auth/me");
+          if (res.success && res.data?.user) {
+            setUser(res.data.user);
+            localStorage.setItem("tjh_user", JSON.stringify(res.data.user));
           }
         }
       } catch {
@@ -73,7 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Demo fallback if backend is offline
-    if (res.message?.includes("Network error") || res.message?.includes("Failed to fetch")) {
+    if (
+      res.message?.includes("Network error") ||
+      res.message?.includes("Failed to fetch")
+    ) {
       const mockUser: User = {
         id: "demo-collector-01",
         name: email.split("@")[0].toUpperCase() || "RAJAK",
@@ -92,11 +103,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: false, message: res.message || "Invalid credentials" };
   };
 
-  const register = async (name: string, email: string, password: string, phone?: string) => {
-    const res = await apiRequest<{ token: string; user: User }>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ name, email, password, phone }),
-    });
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    phone?: string,
+  ) => {
+    const res = await apiRequest<{ token: string; user: User }>(
+      "/auth/register",
+      {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, phone }),
+      },
+    );
 
     if (res.success && res.data) {
       const { token: receivedToken, user: receivedUser } = res.data;
@@ -108,7 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Demo fallback if backend is offline
-    if (res.message?.includes("Network error") || res.message?.includes("Failed to fetch")) {
+    if (
+      res.message?.includes("Network error") ||
+      res.message?.includes("Failed to fetch")
+    ) {
       const mockUser: User = {
         id: "demo-collector-" + Date.now(),
         name,

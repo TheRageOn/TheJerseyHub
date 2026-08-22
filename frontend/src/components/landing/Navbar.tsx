@@ -13,7 +13,11 @@ interface NavbarProps {
   isFixed?: boolean;
 }
 
-export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: NavbarProps) {
+export default function Navbar({
+  onOpenAuth,
+  onDiscoverNext,
+  isFixed = true,
+}: NavbarProps) {
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuth();
   const { totalItems, openCart } = useCart();
@@ -117,8 +121,8 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
                   pathname === "/shop"
                     ? "text-[#ff5500] font-bold"
                     : isWhite
-                    ? "text-black/70 hover:text-black"
-                    : "text-white/70 hover:text-white"
+                      ? "text-black/70 hover:text-black"
+                      : "text-white/70 hover:text-white"
                 }`}
               >
                 SHOP
@@ -129,8 +133,8 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
                   pathname === "/dashboard"
                     ? "text-[#ff5500] font-bold"
                     : isWhite
-                    ? "text-black/70 hover:text-black"
-                    : "text-white/70 hover:text-white"
+                      ? "text-black/70 hover:text-black"
+                      : "text-white/70 hover:text-white"
                 }`}
               >
                 VAULT
@@ -168,8 +172,8 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
               totalItems > 0
                 ? "bg-[#ff5500]/10 border-[#ff5500]/40 text-[#ff5500] font-bold"
                 : isWhite
-                ? "border-black/10 hover:bg-black/5 text-black/70"
-                : "border-white/10 hover:bg-white/10 text-white/70"
+                  ? "border-black/10 hover:bg-black/5 text-black/70"
+                  : "border-white/10 hover:bg-white/10 text-white/70"
             }`}
             aria-label="View shopping bag"
           >
@@ -188,7 +192,7 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
                     : "bg-white/10 hover:bg-white/15 text-white"
                 }`}
               >
-                <span>{user.name.split(" ")[0]}</span>
+                <span>{user.name?.split(" ")[0] || user.email}</span>
               </Link>
 
               <button
@@ -259,7 +263,6 @@ export default function Navbar({ onOpenAuth, onDiscoverNext, isFixed = true }: N
             </svg>
           </button>
         </div>
-
       </div>
 
       {/* ── Mobile Menu Dropdown ──────────────────────────────────── */}
