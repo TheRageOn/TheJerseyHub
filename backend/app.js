@@ -7,6 +7,7 @@ const authRoutes = require("./routes/auth.routes");
 const productRoutes = require("./routes/product.routes");
 const userRoutes = require("./routes/user.routes");
 const orderRoutes = require("./routes/order.routes");
+const cartRoutes = require("./routes/cart.routes");
 const app = express();
 
 // Global CORS Middleware with comprehensive headers & preflight support
@@ -46,5 +47,8 @@ app.use("/api/users", userRoutes);
 
 // Orders routes
 app.use("/api/orders", orderRoutes);
+
+// Cart routes support guests and authenticated customers.
+app.use("/api/cart", cartRoutes);
 
 module.exports = app;
