@@ -14,7 +14,7 @@ const corsOptions = {
   origin: [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://the-jersey-hub-five.vercel.app",
+    process.env.FRONTEND_URL || "https://the-jersey-hub-five.vercel.app",
   ],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
   allowedHeaders: [
